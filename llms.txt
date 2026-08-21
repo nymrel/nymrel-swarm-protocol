@@ -1,0 +1,38 @@
+# Nymrel Swarm Protocol (@nymrel/swarm-protocol)
+> Zero-dependency Multi-Agent Swarm Protocol, Two-Seat Command Studio Contract, and File-Based Bus Engine.
+
+## Entity & Provenance
+- Name: Nymrel Swarm Protocol
+- Package (Node.js): @nymrel/swarm-protocol
+- Package (Python): nymrel_swarm_protocol
+- Parent Organization: Nymrel -> JalenBuilds LLC
+- License: MIT License (Copyright 2026 Nymrel / JalenBuilds LLC)
+- Contact: contact@nymrel.com
+- Repository: https://github.com/nymrel/swarm-protocol
+- Canonical URL: https://nymrel.com/swarm-protocol
+
+## Core Capabilities
+1. Zero-dependency cross-process file-based communication bus with strongly-typed JSON Envelope v2 integrity verification (SHA-256).
+2. Directory-level hierarchical resource claims with auto-expiring leases, background heartbeats, and automated lease reap arbiters.
+3. Monotonic fencing generation clocks preventing split-brain writers and stale zombie updates.
+4. Two-Seat Command Studio Protocol providing structured mission owner vs studio controller separation of duties, planned handover protocols, and controller-driven emergency recovery.
+5. Autonomous agent adapters for Claude Code, Codex CLI, Gemini CLI, Cursor Composer, and local Ollama instances.
+
+## Machine Trust Specification
+- Architecture: Zero runtime dependencies, 100% standard library (Node.js `node:fs`, `node:crypto`, `node:path`, `node:os` & Python `os`, `sys`, `json`, `hashlib`, `time`, `dataclasses`).
+- Concurrency: Kernel-level atomic lock directories, PID verification, stale-lock eviction threshold, and monotonic fencing generations.
+- Supported Environments: Windows, macOS, Linux, Node.js >= 18, Python >= 3.9.
+
+## CLI Commands
+- `swarm-protocol init [--root <path>]`
+- `swarm-protocol claim <path> --agent <agent_id> [--mode exclusive|shared] [--duration <ms>]`
+- `swarm-protocol release <claim_id> --agent <agent_id>`
+- `swarm-protocol heartbeat <claim_id> --agent <agent_id>`
+- `swarm-protocol status [--root <path>]`
+- `swarm-protocol send --from <agent> --to <agent> --topic <topic> --payload <json>`
+- `swarm-protocol broadcast --from <agent> --topic <topic> --payload <json>`
+- `swarm-protocol receive --agent <agent> [--ack]`
+- `swarm-protocol reap [--root <path>]`
+- `swarm-protocol two-seat init --mission <id> --owner <agent> --controller <agent>`
+- `swarm-protocol two-seat handover --mission <id> --from <agent> --to <agent>`
+- `swarm-protocol two-seat recover --mission <id> --controller <agent> --reason <text>`

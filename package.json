@@ -1,0 +1,57 @@
+{
+  "name": "@nymrel/swarm-protocol",
+  "version": "1.0.0",
+  "description": "Zero-dependency, dual-language Multi-Agent Swarm Protocol, Two-Seat Command Studio Contract, and File-Based Bus Engine for autonomous multi-agent swarms.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "commonjs",
+  "bin": {
+    "swarm-protocol": "./bin/swarm-protocol.js"
+  },
+  "files": [
+    "dist",
+    "bin",
+    "src",
+    "python",
+    "README.md",
+    "LICENSE",
+    "SECURITY.md",
+    "llms.txt"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/*.test.js",
+    "test:ts": "tsc && node --test test/*.test.js",
+    "start": "node ./bin/swarm-protocol.js"
+  },
+  "keywords": [
+    "multi-agent",
+    "swarm-protocol",
+    "agent-coordination",
+    "two-seat-command",
+    "fencing-token",
+    "distributed-systems",
+    "file-bus",
+    "claims-leases",
+    "nymrel",
+    "jalenbuilds"
+  ],
+  "author": "Nymrel / JalenBuilds LLC <contact@nymrel.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nymrel/swarm-protocol.git"
+  },
+  "homepage": "https://nymrel.com/swarm-protocol",
+  "bugs": {
+    "url": "https://github.com/nymrel/swarm-protocol/issues"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.1",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
