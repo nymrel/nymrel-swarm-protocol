@@ -23,7 +23,8 @@
     "typecheck": "tsc --noEmit",
     "test": "node --test test/*.test.js",
     "test:ts": "tsc && node --test test/*.test.js",
-    "start": "node ./bin/swarm-protocol.js"
+    "start": "node ./bin/swarm-protocol.js",
+    "prepublishOnly": "npm run build && npm test"
   },
   "keywords": [
     "multi-agent",
@@ -53,5 +54,8 @@
   },
   "engines": {
     "node": ">=18.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
