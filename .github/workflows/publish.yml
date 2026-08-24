@@ -1,144 +1,153 @@
-name: Release & Publish (npm + PyPI)
+name: Validate, Release & Publish (npm + PyPI)
 
 on:
   push:
-    branches: [main, master]
+    branches: [main]
     tags:
-      - 'v*'
+      - "v*"
   pull_request:
-    branches: [main, master]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
-  id-token: write
+
+concurrency:
+  group: swarm-protocol-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
 
 jobs:
-  test-node:
-    name: Test Node.js (${{ matrix.node-version }})
+  release-contract:
+    name: Release metadata contract
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        node-version: [18.x, 20.x, 22.x]
+    timeout-minutes: 5
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Setup Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
+      - name: Set up Python 3.11
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          node-version: ${{ matrix.node-version }}
-          cache: 'npm'
-        continue-on-error: true
+          python-version: "3.11"
 
-      - name: Install dependencies
-        run: npm ci || npm install
+      - name: Verify package names, versions, repository URLs, and tag
+        run: python scripts/check_release_contract.py
 
-      - name: Build bundle
-        run: npm run build
+  test-node:
+    name: Node ${{ matrix.node }} / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        node: [18, 22, 24]
 
-      - name: Run Node.js test suite
-        run: npm test
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Node.js ${{ matrix.node }}
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Typecheck and build
+        run: npm run test:ts
+
+      - name: Verify generated distribution is committed
+        run: git diff --exit-code -- dist
+
+      - name: Verify npm package contents
+        run: npm run pack:check
 
   test-python:
-    name: Test Python (${{ matrix.python-version }})
-    runs-on: ubuntu-latest
+    name: Python ${{ matrix.python }} / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.10', '3.11', '3.12']
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.9", "3.13"]
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+      - name: Set up Python ${{ matrix.python }}
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: ${{ matrix.python-version }}
-          cache: 'pip'
-        continue-on-error: true
+          python-version: ${{ matrix.python }}
 
-      - name: Install dependencies & build tools
-        run: |
-          python -m pip install --upgrade pip setuptools wheel pytest
-          pip install -e . || pip install . || true
+      - name: Install packaging tools
+        run: python -m pip install --disable-pip-version-check build twine
 
-      - name: Run Python unit tests
-        env:
-          PYTHONPATH: ./:./python:./src
-        run: python -m unittest discover -s tests -p 'test_*.py'
+      - name: Compile Python sources
+        run: python -m compileall -q python/nymrel_swarm_protocol
 
-  security-audit:
-    name: Security & DevSecOps Audit
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Build wheel and source distribution
+        run: python -m build
 
-      - name: Setup Node.js 20.x
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20.x
+      - name: Validate Python distributions
+        run: python -m twine check dist/*
 
-      - name: NPM Security Audit
-        run: |
-          npm audit --audit-level=high || echo "::warning ::NPM audit reported potential high-severity advisories"
+      - name: Install built wheel
+        run: >-
+          python -c "import pathlib, subprocess, sys;
+          wheel = next(pathlib.Path('dist').glob('*.whl'));
+          subprocess.check_call([sys.executable, '-m', 'pip', 'install', '--force-reinstall', str(wheel)])"
 
-      - name: Setup Python 3.11
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
+      - name: Run Python unit tests against installed package
+        run: python -m unittest discover -s tests -p "test_*.py"
 
-      - name: Install Bandit & Pip-Audit
-        run: pip install --upgrade bandit pip-audit
-
-      - name: Bandit SAST Security Scan
-        run: |
-          bandit -r . -x ./node_modules,./dist,./.git,./test,./tests,./python/tests,./tests/python -ll -ii || echo "::warning ::Bandit flagged potential security issues"
-
-      - name: Pip-Audit Dependency Vulnerability Scan
-        run: |
-          pip-audit || echo "::warning ::Pip-audit check completed"
+      - name: Smoke-test installed Python CLI
+        run: swarm-protocol-py --help
 
   publish-npm:
-    name: Publish to npm (OIDC Provenance)
-    needs: [test-node, test-python, security-audit]
+    name: Publish npm package with provenance
+    needs: [release-contract, test-node, test-python]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
       id-token: write
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Setup Node.js 20.x
-        uses: actions/setup-node@v4
+      - name: Set up Node.js 22
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
-          node-version: 20.x
-          registry-url: 'https://registry.npmjs.org'
+          node-version: 22
+          cache: npm
+          registry-url: https://registry.npmjs.org
 
-      - name: Install dependencies
-        run: npm ci || npm install
+      - name: Install locked dependencies
+        run: npm ci
 
-      - name: Prepublish validation (build & test)
+      - name: Run prepublication validation
         run: npm run prepublishOnly
 
-      - name: Publish package to npm with OIDC provenance
+      - name: Publish package
         run: npm publish --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
 
   publish-pypi:
-    name: Publish to PyPI (OIDC Trusted Publishing)
-    needs: [test-node, test-python, security-audit]
+    name: Publish PyPI package through Trusted Publishing
+    needs: [release-contract, test-node, test-python]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
       id-token: write
@@ -148,24 +157,18 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Set up Python 3.11
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
-      - name: Install packaging tools & twine
-        run: pip install --upgrade pip build twine
+      - name: Build and validate distributions
+        run: |
+          python -m pip install --disable-pip-version-check build twine
+          python -m build
+          python -m twine check dist/*
 
-      - name: Build source distribution and binary wheel
-        run: python -m build
-
-      - name: Validate distribution integrity
-        run: twine check dist/*
-
-      - name: Publish package distributions to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          skip-existing: true
-          verbose: true
+      - name: Publish distributions
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
