@@ -24,7 +24,8 @@
     "test": "node --test test/*.test.js",
     "test:ts": "tsc && node --test test/*.test.js",
     "start": "node ./bin/swarm-protocol.js",
-    "prepublishOnly": "npm run build && npm test"
+    "pack:check": "npm pack --dry-run",
+    "prepublishOnly": "npm run build && npm test && npm run pack:check"
   },
   "keywords": [
     "multi-agent",
@@ -35,18 +36,17 @@
     "distributed-systems",
     "file-bus",
     "claims-leases",
-    "nymrel",
-    "jalenbuilds"
+    "nymrel"
   ],
   "author": "Nymrel <contact@nymrel.com>",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/nymrel/swarm-protocol.git"
+    "url": "git+https://github.com/nymrel/nymrel-swarm-protocol.git"
   },
   "homepage": "https://nymrel.com/swarm-protocol",
   "bugs": {
-    "url": "https://github.com/nymrel/swarm-protocol/issues"
+    "url": "https://github.com/nymrel/nymrel-swarm-protocol/issues"
   },
   "devDependencies": {
     "@types/node": "^22.20.1",
