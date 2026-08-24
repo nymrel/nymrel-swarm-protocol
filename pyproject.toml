@@ -44,5 +44,5 @@ swarm-protocol-py = "nymrel_swarm_protocol.cli:main"
 [project.urls]
 Homepage = "https://nymrel.com/swarm-protocol"
 Documentation = "https://nymrel.com/swarm-protocol/docs"
-Repository = "https://github.com/nymrel/swarm-protocol"
-Issues = "https://github.com/nymrel/swarm-protocol/issues"
+Repository = "https://github.com/nymrel/nymrel-swarm-protocol"
+Issues = "https://github.com/nymrel/nymrel-swarm-protocol/issues"
