@@ -20,7 +20,7 @@ Built by **Nymrel** under **JalenBuilds LLC**.
                    +-------------+                  |                  +-------------+
                    |                                |                                |
        +-----------------------+        +-----------------------+        +-----------------------+
-       |      CLAUDE CODE      |        |       CODEX CLI       |        |    CURSOR COMPOSER    |
+       |      CLAUDE CODE      |        |       CODEX CLI       |        |        CURSOR         |
        |     (Frontend/UX)     |        |   (Backend / Infra)   |        |   (Research / Scan)   |
        +-----------------------+        +-----------------------+        +-----------------------+
                    |                                |                                |
@@ -49,14 +49,37 @@ Built by **Nymrel** under **JalenBuilds LLC**.
 - **Monotonic Fencing Tokens**: Protect against split-brain scenarios and zombie writers. Expired or lagged workers presenting older generation tokens fail closed immediately.
 - **Path-Hierarchical Resource Claims**: Fine-grained locking at the directory or file level with mode awareness (`exclusive` write vs `shared` read/review), auto-expiring leases, and auto-arbiter cleanup.
 - **Two-Seat Command Studio Protocol**: Clean separation of powers between the active `mission_owner` (owns outcome and terminal closeout) and the independent `studio_controller` (watches health, verifies proof, and triggers emergency recovery without countermanding active writes).
-- **Out-of-the-Box Adapters**: Drop-in adapters for **Claude Code**, **Codex CLI**, **Gemini CLI**, **Cursor Composer**, and **Local Ollama** models.
-- **100% TypeScript + Python Parity**: Complete symmetry across both language ecosystems.
+- **Out-of-the-Box Adapters**: Drop-in adapters for **Claude Code**, **Codex CLI**, **Gemini CLI**, **Cursor**, and **Local Ollama** models.
+- **Dual TypeScript + Python Implementations**: The shared protocol contract is implemented and independently tested in both language ecosystems.
 
 ---
 
-## 🚀 1-Minute Quickstart
+## 🚀 Quickstart
+
+> [!IMPORTANT]
+> As of 2026-08-29, neither registry package has been published. The npm and PyPI commands below are reserved for the first trusted release and will fail until the registry owners finish their provider-side configuration. Use a pinned source checkout in the meantime.
+
+### Install from source today
+
+```bash
+git clone https://github.com/nymrel/nymrel-swarm-protocol.git
+cd nymrel-swarm-protocol
+
+# Node.js: validate, build, and create an installable tarball.
+npm ci --ignore-scripts
+npm run test:ts
+npm pack
+
+# Python: install the local zero-dependency package.
+python -m pip install --no-deps .
+python -m unittest discover -s tests -p 'test_*.py'
+```
+
+Pin the checkout to a reviewed commit before adopting it in an automated or production workflow.
 
 ### TypeScript / Node.js
+
+After the first trusted npm release:
 
 ```bash
 npm install @nymrel/swarm-protocol
@@ -101,6 +124,8 @@ codex.destroy();
 ---
 
 ### Python
+
+After the first trusted PyPI release:
 
 ```bash
 pip install nymrel-swarm-protocol

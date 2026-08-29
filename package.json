@@ -11,8 +11,8 @@
   "files": [
     "dist",
     "bin",
-    "src",
-    "python",
+    "src/**/*.ts",
+    "python/nymrel_swarm_protocol/*.py",
     "README.md",
     "LICENSE",
     "SECURITY.md",
@@ -23,6 +23,7 @@
     "typecheck": "tsc --noEmit",
     "test": "node --test test/*.test.js",
     "test:ts": "tsc && node --test test/*.test.js",
+    "release:verify": "node scripts/verify-release.mjs",
     "start": "node ./bin/swarm-protocol.js",
     "prepublishOnly": "npm run build && npm test"
   },
@@ -42,11 +43,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/nymrel/swarm-protocol.git"
+    "url": "https://github.com/nymrel/nymrel-swarm-protocol.git"
   },
   "homepage": "https://nymrel.com/swarm-protocol",
   "bugs": {
-    "url": "https://github.com/nymrel/swarm-protocol/issues"
+    "url": "https://github.com/nymrel/nymrel-swarm-protocol/issues"
   },
   "devDependencies": {
     "@types/node": "^22.20.1",
@@ -57,5 +58,6 @@
   },
   "publishConfig": {
     "access": "public"
-  }
+  },
+  "packageManager": "npm@11.19.1"
 }
