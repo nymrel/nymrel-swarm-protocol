@@ -25,12 +25,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: ubuntu-24.04, node-version: 18.x }
-          - { os: ubuntu-24.04, node-version: 20.x }
           - { os: ubuntu-24.04, node-version: 22.x }
           - { os: ubuntu-24.04, node-version: 24.x }
-          - { os: windows-2025, node-version: 18.x }
+          - { os: ubuntu-24.04, node-version: 26.x }
+          - { os: windows-2025, node-version: 22.x }
           - { os: windows-2025, node-version: 24.x }
+          - { os: windows-2025, node-version: 26.x }
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -41,13 +41,19 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: ${{ matrix.node-version }}
-          cache: npm
+          package-manager-cache: false
+
+      - name: Install the exact reviewed npm outside the repository contract
+        # The package manager under test must exist before fail-closed devEngines is evaluated.
+        # zizmor: ignore[adhoc-packages]
+        working-directory: ${{ runner.temp }}
+        run: npm install --global npm@11.19.1 --ignore-scripts --no-audit --no-fund
 
       - name: Install locked dependencies
-        run: npm ci --ignore-scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
 
-      - name: Build and test
-        run: npm run test:ts
+      - name: Run the complete Node and package contract
+        run: npm run check
 
       - name: Verify generated distribution is current
         run: git diff --exit-code -- dist
@@ -60,10 +66,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: ubuntu-24.04, python-version: '3.9' }
+          - { os: ubuntu-24.04, python-version: '3.11' }
           - { os: ubuntu-24.04, python-version: '3.12' }
+          - { os: ubuntu-24.04, python-version: '3.13' }
           - { os: ubuntu-24.04, python-version: '3.14' }
-          - { os: windows-2025, python-version: '3.9' }
+          - { os: windows-2025, python-version: '3.11' }
           - { os: windows-2025, python-version: '3.14' }
     steps:
       - name: Checkout repository
@@ -75,10 +82,10 @@ jobs:
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ matrix.python-version }}
-          cache: pip
-          cache-dependency-path: pyproject.toml
 
       - name: Install pinned packaging tools
+        # Exact build-front-end and validation tools are intentional release inputs.
+        # zizmor: ignore[adhoc-packages]
         run: >-
           python -m pip install --disable-pip-version-check
           build==1.6.0 twine==7.0.0
@@ -105,6 +112,9 @@ jobs:
     name: Dependency and source security
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    permissions:
+      actions: read # Required so Zizmor can resolve action metadata for annotations.
+      contents: read
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -115,24 +125,27 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .node-version
-          cache: npm
+          package-manager-cache: false
 
       - name: Set up the trusted-publishing npm CLI
-        run: npm install --global npm@11.19.1
+        # zizmor: ignore[adhoc-packages]
+        working-directory: ${{ runner.temp }}
+        run: npm install --global npm@11.19.1 --ignore-scripts --no-audit --no-fund
 
       - name: Audit locked Node.js dependencies
         run: |
-          npm ci --strict-allow-scripts
-          npm audit --audit-level=high
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run audit
+          npm run audit:prod
 
       - name: Set up Python 3.14
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.14'
-          cache: pip
-          cache-dependency-path: pyproject.toml
 
       - name: Install pinned Python security tools
+        # Exact scanners are intentional security inputs rather than project dependencies.
+        # zizmor: ignore[adhoc-packages]
         run: >-
           python -m pip install --disable-pip-version-check
           bandit==1.9.4 pip-audit==2.10.1
@@ -142,6 +155,17 @@ jobs:
 
       - name: Audit the local Python project
         run: pip-audit --strict .
+
+      - name: Audit GitHub Actions definitions
+        uses: zizmorcore/zizmor-action@3dc1ecc9bcb9e94e9b2c709687979e1298497054 # v0.6.2
+        with:
+          advanced-security: false
+          annotations: true
+          min-confidence: medium
+          min-severity: medium
+          online-audits: false
+          persona: auditor
+          version: 1.29.0
 
   build-release:
     name: Build verified release artifacts
@@ -160,19 +184,25 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .node-version
-          cache: npm
+          package-manager-cache: false
 
       - name: Set up the trusted-publishing npm CLI
-        run: npm install --global npm@11.19.1
+        # zizmor: ignore[adhoc-packages]
+        working-directory: ${{ runner.temp }}
+        run: npm install --global npm@11.19.1 --ignore-scripts --no-audit --no-fund
 
       - name: Verify, build, and pack the npm distribution
+        # Installing the just-built local archive is the clean-room consumer acceptance gate.
+        # zizmor: ignore[adhoc-packages]
         run: |
           git merge-base --is-ancestor "${GITHUB_SHA}" origin/main
-          npm ci --strict-allow-scripts
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run check
+          npm run audit
+          npm run audit:prod
           npm run release:verify -- --tag "${GITHUB_REF_NAME}"
-          npm run prepublishOnly
           mkdir -p release/npm
-          npm pack --pack-destination release/npm
+          npm pack --ignore-scripts --pack-destination release/npm
           mapfile -t packages < <(find release/npm -maxdepth 1 -type f -name '*.tgz' -print)
           test "${#packages[@]}" -eq 1
           if tar -tzf "${packages[0]}" | grep -Eq '(__pycache__/|\.pyc$|\.egg-info/)'; then
@@ -180,7 +210,9 @@ jobs:
             exit 1
           fi
           consumer="${RUNNER_TEMP}/npm-consumer"
-          npm install --ignore-scripts --prefix "${consumer}" "${packages[0]}"
+          mkdir -p "${consumer}"
+          printf '%s\n' '{"name":"nymrel-swarm-consumer","private":true}' > "${consumer}/package.json"
+          npm install --ignore-scripts --no-audit --no-fund --prefix "${consumer}" "${packages[0]}"
           NODE_PATH="${consumer}/node_modules" node -e "const api = require('@nymrel/swarm-protocol'); if (typeof api.ClaimManager !== 'function' || typeof api.TwoSeatProtocol !== 'function') process.exit(1)"
           "${consumer}/node_modules/.bin/swarm-protocol" --help
 
@@ -190,6 +222,8 @@ jobs:
           python-version: '3.14'
 
       - name: Build and validate the Python distributions
+        # Exact build-front-end and validation tools are intentional release inputs.
+        # zizmor: ignore[adhoc-packages]
         run: |
           python -m pip install --disable-pip-version-check build==1.6.0 twine==7.0.0
           python -m build --outdir release/python-dist
@@ -206,15 +240,37 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  attest-release:
+    name: Attest the immutable release candidate
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: build-release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      attestations: write # Create provenance for the exact npm, wheel, and sdist artifacts.
+      contents: read
+      id-token: write # Exchange the workflow identity for the attestation signing token.
+    steps:
+      - name: Download the verified release candidate
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-distributions-${{ github.sha }}
+          path: release
+
+      - name: Generate build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: release/**/*
+
   publish-npm:
     name: Publish npm with trusted publishing
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    needs: build-release
+    needs: [build-release, attest-release]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: read
-      id-token: write
+      id-token: write # Exchange the npm environment identity for a short-lived publish token.
     steps:
       - name: Download the verified release candidate
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -227,9 +283,12 @@ jobs:
         with:
           node-version: '24.20.0'
           registry-url: https://registry.npmjs.org
+          package-manager-cache: false
 
       - name: Set up the trusted-publishing npm CLI
-        run: npm install --global npm@11.19.1
+        # zizmor: ignore[adhoc-packages]
+        working-directory: ${{ runner.temp }}
+        run: npm install --global npm@11.19.1 --ignore-scripts --no-audit --no-fund
 
       - name: Publish exactly one npm distribution
         shell: bash
@@ -241,7 +300,7 @@ jobs:
   publish-pypi:
     name: Publish PyPI with trusted publishing
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    needs: build-release
+    needs: [build-release, attest-release]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     environment:
@@ -249,7 +308,7 @@ jobs:
       url: https://pypi.org/p/nymrel-swarm-protocol
     permissions:
       contents: read
-      id-token: write
+      id-token: write # Exchange the PyPI environment identity for a short-lived publish token.
     steps:
       - name: Download the verified release candidate
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1

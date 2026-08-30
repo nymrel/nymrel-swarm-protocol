@@ -1,8 +1,8 @@
 # Nymrel Swarm Protocol (`@nymrel/swarm-protocol`)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D18.0.0-339933?logo=node.js)](https://nodejs.org)
-[![Python](https://img.shields.io/badge/Python-%3E%3D3.9-3776AB?logo=python)](https://python.org)
+[![Node.js](https://img.shields.io/badge/Node.js-22%20%7C%2024%20%7C%2026-339933?logo=node.js)](https://nodejs.org)
+[![Python](https://img.shields.io/badge/Python-3.11--3.14-3776AB?logo=python)](https://python.org)
 [![Zero Runtime Dependencies](https://img.shields.io/badge/Dependencies-0_Runtime-blueviolet.svg)](#zero-dependencies)
 
 **Zero-dependency, dual-language (TypeScript + Python) Multi-Agent Swarm Protocol, Two-Seat Command Studio Contract, and File-Based Bus Engine for autonomous AI coding agents.**
@@ -61,14 +61,25 @@ Built by **Nymrel** under **JalenBuilds LLC**.
 
 ### Install from source today
 
+The checked-in `.node-version` selects Node.js 24, where Corepack is bundled.
+Node.js 22 works the same way. Node.js 26 is also supported, but it no longer
+bundles Corepack: from a directory outside this checkout, first run
+`npm install --global npm@11.19.1 --ignore-scripts --no-audit --no-fund`.
+Every path must report npm `11.19.1` before repository package commands run.
+
 ```bash
 git clone https://github.com/nymrel/nymrel-swarm-protocol.git
 cd nymrel-swarm-protocol
 
-# Node.js: validate, build, and create an installable tarball.
-npm ci --ignore-scripts
-npm run test:ts
-npm pack
+# Node.js 22/24: activate the reviewed npm, then validate and pack.
+# On Node.js 26, skip Corepack and use the external bootstrap above.
+corepack enable npm
+npm --version # must print 11.19.1
+npm ci --ignore-scripts --no-audit --no-fund
+npm run check
+npm run audit
+npm run audit:prod
+npm pack --ignore-scripts
 
 # Python: install the local zero-dependency package.
 python -m pip install --no-deps .
@@ -76,6 +87,10 @@ python -m unittest discover -s tests -p 'test_*.py'
 ```
 
 Pin the checkout to a reviewed commit before adopting it in an automated or production workflow.
+
+### Supported runtimes
+
+The source contract supports maintained Node.js 22, 24, and 26 releases and Python 3.11 through 3.14. The preferred contributor runtime is recorded in `.node-version`; `packageManager` and `devEngines` fail closed on package-manager drift. End-of-life runtimes are intentionally excluded from CI and support claims.
 
 ### TypeScript / Node.js
 
@@ -247,11 +262,13 @@ In accordance with Nymrel entity standards:
 Both TypeScript and Python engines include comprehensive unit & concurrency test suites.
 
 ```bash
-# Run TypeScript/Node.js tests
-npm run test:ts
+# Run the complete TypeScript/package contract
+npm --version # must print 11.19.1; use the source-install bootstrap above
+npm ci --ignore-scripts --no-audit --no-fund
+npm run check
 
 # Run Python tests
-python -m unittest discover -s tests
+python -m unittest discover -s tests -p 'test_*.py'
 ```
 
 ---

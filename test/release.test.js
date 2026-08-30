@@ -17,6 +17,19 @@ function fixture(overrides = {}) {
     bugs: { url: `${repository}/issues` },
     files: ['src/**/*.ts', 'python/nymrel_swarm_protocol/*.py'],
     packageManager: 'npm@11.19.1',
+    engines: { node: '>=22.22.2 <27' },
+    devEngines: {
+      runtime: { name: 'node', version: '>=22.22.2 <27', onFail: 'error' },
+      packageManager: { name: 'npm', version: '11.19.1', onFail: 'error' },
+    },
+    sideEffects: false,
+    exports: {
+      '.': {
+        types: './dist/index.d.ts',
+        require: './dist/index.js',
+        default: './dist/index.js',
+      },
+    },
     ...overrides.npm,
   };
   const python = {
@@ -24,14 +37,22 @@ function fixture(overrides = {}) {
     version: '1.0.0',
     repository,
     issues: `${repository}/issues`,
+    requiresPython: '>=3.11',
+    buildBackend: 'setuptools.build_meta',
+    buildRequirements: ['setuptools==84.0.0'],
     ...overrides.python,
   };
 
   fs.writeFileSync(path.join(root, 'package.json'), `${JSON.stringify(npmPackage, null, 2)}\n`);
   fs.writeFileSync(path.join(root, 'pyproject.toml'), [
+    '[build-system]',
+    `requires = ${JSON.stringify(python.buildRequirements)}`,
+    `build-backend = "${python.buildBackend}"`,
+    '',
     '[project]',
     `name = "${python.name}"`,
     `version = "${python.version}"`,
+    `requires-python = "${python.requiresPython}"`,
     '',
     '[project.urls]',
     `Repository = "${python.repository}"`,
@@ -71,6 +92,8 @@ describe('release verification', () => {
         version: '1.0.0',
         npm: '@nymrel/swarm-protocol',
         python: 'nymrel-swarm-protocol',
+        node: '>=22.22.2 <27',
+        pythonRuntime: '>=3.11',
         repository,
       });
     });
@@ -89,6 +112,42 @@ describe('release verification', () => {
       const result = verify(root, 'v1.0.0');
       assert.notEqual(result.status, 0);
       assert.match(result.stderr, /npm repository URL/);
+    });
+  });
+
+  test('rejects end-of-life Node support and development-toolchain drift', () => {
+    withFixture({ npm: { engines: { node: '>=18.0.0' } } }, (root) => {
+      const result = verify(root, 'v1.0.0');
+      assert.notEqual(result.status, 0);
+      assert.match(result.stderr, /npm Node engine/);
+    });
+
+    withFixture({ npm: { devEngines: { runtime: { name: 'node', version: '>=22.22.2 <27', onFail: 'warn' } } } }, (root) => {
+      const result = verify(root, 'v1.0.0');
+      assert.notEqual(result.status, 0);
+      assert.match(result.stderr, /development runtime failure policy/);
+    });
+  });
+
+  test('rejects an end-of-life Python floor or mutable build backend', () => {
+    withFixture({ python: { requiresPython: '>=3.9' } }, (root) => {
+      const result = verify(root, 'v1.0.0');
+      assert.notEqual(result.status, 0);
+      assert.match(result.stderr, /Python runtime requirement/);
+    });
+
+    withFixture({ python: { buildRequirements: ['setuptools>=77.0.0', 'wheel>=0.45.0'] } }, (root) => {
+      const result = verify(root, 'v1.0.0');
+      assert.notEqual(result.status, 0);
+      assert.match(result.stderr, /Python build requirements/);
+    });
+  });
+
+  test('rejects a package root that bypasses the reviewed distribution boundary', () => {
+    withFixture({ npm: { exports: { '.': { default: './src/index.ts' } } } }, (root) => {
+      const result = verify(root, 'v1.0.0');
+      assert.notEqual(result.status, 0);
+      assert.match(result.stderr, /npm root type export/);
     });
   });
 
