@@ -230,6 +230,8 @@ function encodeField(value: string | null | undefined): string {
   return `${Buffer.byteLength(normalized, 'utf8')}:${normalized}`;
 }
 
+export class DeliveryReceiptConflictError extends Error {}
+
 export class DeliveryLedger {
   private readonly receiptsDir: string;
   private readonly lockManager: AtomicLockManager;
@@ -296,7 +298,27 @@ export class DeliveryLedger {
 
     return this.lockManager.withLock(lockName, async () => {
       const existing = this.readReceipt(receiptPath);
-      if (existing) return cloneReceipt(existing);
+      if (existing) {
+        const creation = existing.transitions[0];
+        const requestedEvidence = params.evidence;
+        const sameEvidence =
+          creation.evidence?.kind === requestedEvidence?.kind &&
+          creation.evidence?.reference === requestedEvidence?.reference &&
+          creation.evidence?.sha256 === requestedEvidence?.sha256;
+        const requestedAtMatches =
+          params.at === undefined || creation.at === normalizeTimestamp(params.at);
+        if (
+          creation.actor !== params.actor ||
+          !sameEvidence ||
+          creation.reason_code !== params.reason_code ||
+          !requestedAtMatches
+        ) {
+          throw new DeliveryReceiptConflictError(
+            'Delivery receipt already exists with a different creation contract'
+          );
+        }
+        return cloneReceipt(existing);
+      }
 
       const at = normalizeTimestamp(params.at);
       const draft: Omit<DeliveryTransition, 'hash'> = {
