@@ -45,6 +45,19 @@ export const DELIVERY_EVIDENCE_KINDS = [
 
 export type DeliveryEvidenceKind = (typeof DELIVERY_EVIDENCE_KINDS)[number];
 
+export const DELIVERY_REASON_CODES = [
+  'local_persistence_failed',
+  'recipient_evidence_reconciled',
+  'transport_result_ambiguous',
+  'explicit_reconciliation',
+  'deadline_expired',
+  'delivery_dead_lettered',
+  'authority_revoked',
+  'recipient_rejected',
+] as const;
+
+export type DeliveryReasonCode = (typeof DELIVERY_REASON_CODES)[number];
+
 export interface DeliveryEvidence {
   kind: DeliveryEvidenceKind;
   reference: string;
@@ -58,7 +71,7 @@ export interface DeliveryTransition {
   actor: string;
   at: string;
   evidence?: DeliveryEvidence;
-  note?: string;
+  reason_code?: DeliveryReasonCode;
   previous_hash: string | null;
   hash: string;
 }
@@ -80,7 +93,7 @@ export interface CreateDeliveryReceiptParams {
   actor: string;
   at?: string;
   evidence?: DeliveryEvidence;
-  note?: string;
+  reason_code?: DeliveryReasonCode;
 }
 
 export interface TransitionDeliveryParams {
@@ -90,7 +103,7 @@ export interface TransitionDeliveryParams {
   actor: string;
   at?: string;
   evidence?: DeliveryEvidence;
-  note?: string;
+  reason_code?: DeliveryReasonCode;
 }
 
 const TERMINAL_STATES = new Set<DeliveryState>([
@@ -106,9 +119,9 @@ const ALLOWED_TRANSITIONS: Readonly<Record<DeliveryState, readonly DeliveryState
   accepted: ['routed', 'deferred', 'delivery_unknown', 'expired', 'dead_lettered', 'revoked', 'rejected'],
   routed: ['delivered', 'deferred', 'delivery_unknown', 'expired', 'dead_lettered', 'revoked'],
   deferred: ['routed', 'delivery_unknown', 'expired', 'dead_lettered', 'revoked'],
-  delivered: ['observed', 'delivery_unknown', 'expired', 'dead_lettered', 'revoked'],
-  observed: ['acted', 'delivery_unknown', 'revoked'],
-  acted: ['verified', 'delivery_unknown', 'revoked'],
+  delivered: ['observed', 'expired', 'dead_lettered', 'revoked'],
+  observed: ['acted', 'revoked'],
+  acted: ['verified', 'revoked'],
   delivery_unknown: ['routed', 'deferred', 'delivered', 'observed', 'expired', 'dead_lettered', 'revoked'],
   verified: [],
   expired: [],
@@ -119,7 +132,29 @@ const ALLOWED_TRANSITIONS: Readonly<Record<DeliveryState, readonly DeliveryState
 
 const STATE_SET = new Set<string>(DELIVERY_STATES);
 const EVIDENCE_KIND_SET = new Set<string>(DELIVERY_EVIDENCE_KINDS);
+const REASON_CODE_SET = new Set<string>(DELIVERY_REASON_CODES);
 const EVIDENCE_KEYS = new Set(['kind', 'reference', 'sha256']);
+const TRANSITION_KEYS = new Set([
+  'sequence',
+  'from',
+  'to',
+  'actor',
+  'at',
+  'evidence',
+  'reason_code',
+  'previous_hash',
+  'hash',
+]);
+const RECEIPT_KEYS = new Set([
+  'version',
+  'message_id',
+  'recipient',
+  'current_state',
+  'created_at',
+  'updated_at',
+  'chain_hash',
+  'transitions',
+]);
 
 function cloneReceipt(receipt: DeliveryReceipt): DeliveryReceipt {
   return JSON.parse(JSON.stringify(receipt)) as DeliveryReceipt;
@@ -137,6 +172,14 @@ function assertText(value: unknown, field: string, maxLength: number): asserts v
   }
 }
 
+function assertClosedObject(value: object, allowed: ReadonlySet<string>, field: string): void {
+  for (const key of Object.keys(value)) {
+    if (!allowed.has(key)) {
+      throw new Error(`${field} field "${key}" is not allowed`);
+    }
+  }
+}
+
 function normalizeTimestamp(at?: string): string {
   if (at === undefined) return new Date().toISOString();
   assertText(at, 'at', 64);
@@ -150,16 +193,20 @@ function normalizeTimestamp(at?: string): string {
   return parsed.toISOString();
 }
 
+function assertCanonicalTimestamp(value: unknown, field: string): number {
+  assertText(value, field, 64);
+  const timestamp = Date.parse(value);
+  if (Number.isNaN(timestamp) || new Date(timestamp).toISOString() !== value) {
+    throw new Error(`${field} must be a canonical UTC timestamp`);
+  }
+  return timestamp;
+}
+
 function assertEvidence(evidence: unknown): asserts evidence is DeliveryEvidence {
   if (!evidence || typeof evidence !== 'object' || Array.isArray(evidence)) {
     throw new Error('evidence must be an object');
   }
-
-  for (const key of Object.keys(evidence)) {
-    if (!EVIDENCE_KEYS.has(key)) {
-      throw new Error(`evidence field "${key}" is not allowed`);
-    }
-  }
+  assertClosedObject(evidence, EVIDENCE_KEYS, 'evidence');
 
   const candidate = evidence as Partial<DeliveryEvidence>;
   if (!candidate.kind || !EVIDENCE_KIND_SET.has(candidate.kind)) {
@@ -172,8 +219,10 @@ function assertEvidence(evidence: unknown): asserts evidence is DeliveryEvidence
   }
 }
 
-function assertNote(note: unknown): asserts note is string {
-  assertText(note, 'note', 1000);
+function assertReasonCode(reasonCode: unknown): asserts reasonCode is DeliveryReasonCode {
+  if (typeof reasonCode !== 'string' || !REASON_CODE_SET.has(reasonCode)) {
+    throw new Error(`reason_code must be one of: ${DELIVERY_REASON_CODES.join(', ')}`);
+  }
 }
 
 function encodeField(value: string | null | undefined): string {
@@ -193,10 +242,11 @@ export class DeliveryLedger {
   }
 
   static isTerminal(state: DeliveryState): boolean {
-    return TERMINAL_STATES.has(state);
+    return STATE_SET.has(state) && TERMINAL_STATES.has(state);
   }
 
   static canTransition(from: DeliveryState, to: DeliveryState): boolean {
+    if (!STATE_SET.has(from) || !STATE_SET.has(to)) return false;
     return from === to || ALLOWED_TRANSITIONS[from].includes(to);
   }
 
@@ -216,7 +266,7 @@ export class DeliveryLedger {
       transition.evidence?.kind,
       transition.evidence?.reference,
       transition.evidence?.sha256,
-      transition.note,
+      transition.reason_code,
       transition.previous_hash,
     ]
       .map(encodeField)
@@ -239,9 +289,9 @@ export class DeliveryLedger {
     this.assertIdentity(params.recipient, 'recipient');
     this.assertIdentity(params.actor, 'actor');
     if (params.evidence !== undefined) assertEvidence(params.evidence);
-    if (params.note !== undefined) assertNote(params.note);
+    if (params.reason_code !== undefined) assertReasonCode(params.reason_code);
 
-    const receiptPath = this.getReceiptPath(params.message_id, params.recipient);
+    const receiptPath = this.getReceiptPath(params.message_id, params.recipient, true);
     const lockName = this.getLockName(params.message_id, params.recipient);
 
     return this.lockManager.withLock(lockName, async () => {
@@ -256,7 +306,7 @@ export class DeliveryLedger {
         actor: params.actor,
         at,
         ...(params.evidence ? { evidence: params.evidence } : {}),
-        ...(params.note ? { note: params.note } : {}),
+        ...(params.reason_code ? { reason_code: params.reason_code } : {}),
         previous_hash: null,
       };
       const transition: DeliveryTransition = {
@@ -285,9 +335,9 @@ export class DeliveryLedger {
     this.assertIdentity(params.actor, 'actor');
     this.assertState(params.to);
     if (params.evidence !== undefined) assertEvidence(params.evidence);
-    if (params.note !== undefined) assertNote(params.note);
+    if (params.reason_code !== undefined) assertReasonCode(params.reason_code);
 
-    const receiptPath = this.getReceiptPath(params.message_id, params.recipient);
+    const receiptPath = this.getReceiptPath(params.message_id, params.recipient, false);
     const lockName = this.getLockName(params.message_id, params.recipient);
 
     return this.lockManager.withLock(lockName, async () => {
@@ -321,7 +371,7 @@ export class DeliveryLedger {
         actor: params.actor,
         at,
         ...(params.evidence ? { evidence: params.evidence } : {}),
-        ...(params.note ? { note: params.note } : {}),
+        ...(params.reason_code ? { reason_code: params.reason_code } : {}),
         previous_hash: previousHash,
       };
       const transition: DeliveryTransition = {
@@ -342,7 +392,7 @@ export class DeliveryLedger {
   get(messageId: string, recipient: string): DeliveryReceipt | null {
     this.assertIdentity(messageId, 'message_id');
     this.assertIdentity(recipient, 'recipient');
-    const receipt = this.readReceipt(this.getReceiptPath(messageId, recipient));
+    const receipt = this.readReceipt(this.getReceiptPath(messageId, recipient, false));
     return receipt ? cloneReceipt(receipt) : null;
   }
 
@@ -376,6 +426,8 @@ export class DeliveryLedger {
     if (!receipt || typeof receipt !== 'object' || Array.isArray(receipt)) {
       throw new Error('Delivery receipt must be an object');
     }
+    assertClosedObject(receipt, RECEIPT_KEYS, 'receipt');
+
     const candidate = receipt as Partial<DeliveryReceipt>;
     if (candidate.version !== DELIVERY_RECEIPT_VERSION) {
       throw new Error(`Unsupported delivery receipt version: ${String(candidate.version)}`);
@@ -385,10 +437,10 @@ export class DeliveryLedger {
     if (!candidate.current_state || !STATE_SET.has(candidate.current_state)) {
       throw new Error('receipt.current_state is invalid');
     }
-    assertText(candidate.created_at, 'receipt.created_at', 64);
-    assertText(candidate.updated_at, 'receipt.updated_at', 64);
-    if (Number.isNaN(Date.parse(candidate.created_at)) || Number.isNaN(Date.parse(candidate.updated_at))) {
-      throw new Error('Delivery receipt timestamps are invalid');
+    const createdAt = assertCanonicalTimestamp(candidate.created_at, 'receipt.created_at');
+    const updatedAt = assertCanonicalTimestamp(candidate.updated_at, 'receipt.updated_at');
+    if (updatedAt < createdAt) {
+      throw new Error('receipt.updated_at must not precede receipt.created_at');
     }
     if (!candidate.chain_hash || !/^[a-f0-9]{64}$/.test(candidate.chain_hash)) {
       throw new Error('receipt.chain_hash is invalid');
@@ -399,11 +451,13 @@ export class DeliveryLedger {
 
     let priorState: DeliveryState | null = null;
     let priorHash: string | null = null;
+    let priorTimestamp = -Infinity;
     for (let index = 0; index < candidate.transitions.length; index += 1) {
       const transition = candidate.transitions[index] as DeliveryTransition;
-      if (!transition || typeof transition !== 'object') {
+      if (!transition || typeof transition !== 'object' || Array.isArray(transition)) {
         throw new Error(`receipt.transitions[${index}] is invalid`);
       }
+      assertClosedObject(transition, TRANSITION_KEYS, `receipt.transitions[${index}]`);
       if (transition.sequence !== index + 1) {
         throw new Error('Delivery transition sequence is not contiguous');
       }
@@ -420,12 +474,12 @@ export class DeliveryLedger {
         throw new Error(`Stored delivery transition ${String(priorState)} -> ${transition.to} is invalid`);
       }
       assertText(transition.actor, 'transition.actor', 512);
-      assertText(transition.at, 'transition.at', 64);
-      if (Number.isNaN(Date.parse(transition.at))) {
-        throw new Error('Delivery transition timestamp is invalid');
+      const transitionAt = assertCanonicalTimestamp(transition.at, 'transition.at');
+      if (transitionAt < priorTimestamp) {
+        throw new Error('Delivery transition timestamps must not move backward');
       }
       if (transition.evidence !== undefined) assertEvidence(transition.evidence);
-      if (transition.note !== undefined) assertNote(transition.note);
+      if (transition.reason_code !== undefined) assertReasonCode(transition.reason_code);
       if (transition.previous_hash !== priorHash) {
         throw new Error('Delivery transition hash chain predecessor is invalid');
       }
@@ -443,6 +497,7 @@ export class DeliveryLedger {
       }
       priorState = transition.to;
       priorHash = transition.hash;
+      priorTimestamp = transitionAt;
     }
 
     if (candidate.current_state !== priorState || candidate.chain_hash !== priorHash) {
@@ -470,9 +525,9 @@ export class DeliveryLedger {
     return crypto.createHash('sha256').update(value, 'utf8').digest('hex');
   }
 
-  private getReceiptPath(messageId: string, recipient: string): string {
+  private getReceiptPath(messageId: string, recipient: string, createParent: boolean): string {
     const dir = path.join(this.receiptsDir, this.digest(messageId));
-    fs.mkdirSync(dir, { recursive: true });
+    if (createParent) fs.mkdirSync(dir, { recursive: true });
     return path.join(dir, `${this.digest(recipient)}.json`);
   }
 
@@ -490,10 +545,16 @@ export class DeliveryLedger {
   private writeReceipt(receiptPath: string, receipt: DeliveryReceipt): void {
     DeliveryLedger.assertReceipt(receipt);
     const temporaryPath = `${receiptPath}.${process.pid}.${crypto.randomUUID()}.tmp`;
-    fs.writeFileSync(temporaryPath, JSON.stringify(receipt, null, 2), { encoding: 'utf8', mode: 0o600 });
+    let descriptor: number | undefined;
     try {
+      descriptor = fs.openSync(temporaryPath, 'wx', 0o600);
+      fs.writeFileSync(descriptor, `${JSON.stringify(receipt, null, 2)}\n`, 'utf8');
+      fs.fsyncSync(descriptor);
+      fs.closeSync(descriptor);
+      descriptor = undefined;
       fs.renameSync(temporaryPath, receiptPath);
     } finally {
+      if (descriptor !== undefined) fs.closeSync(descriptor);
       if (fs.existsSync(temporaryPath)) fs.rmSync(temporaryPath, { force: true });
     }
   }
