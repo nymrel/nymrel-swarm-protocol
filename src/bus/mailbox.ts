@@ -122,7 +122,12 @@ export class FileMailboxManager {
     return [envelope.header.recipient];
   }
 
-  private async createDeliveryReceipt(messageId: string, recipient: string, sender: string): Promise<void> {
+  private async createDeliveryReceipt(
+    messageId: string,
+    recipient: string,
+    sender: string,
+    envelopeSha256: string
+  ): Promise<void> {
     await this.deliveryLedger.create({
       message_id: messageId,
       recipient,
@@ -130,6 +135,7 @@ export class FileMailboxManager {
       evidence: {
         kind: 'receipt_created',
         reference: `envelope://${this.logicalSegment(messageId)}`,
+        sha256: envelopeSha256,
       },
     });
   }
@@ -245,7 +251,7 @@ export class FileMailboxManager {
       let changed = false;
       const recipients = this.resolveRecipients(envelope, isBroadcast);
       for (const recipient of recipients) {
-        await this.createDeliveryReceipt(header.id, recipient, header.sender);
+        await this.createDeliveryReceipt(header.id, recipient, header.sender, contentDigest);
       }
 
       const outboxReference =
