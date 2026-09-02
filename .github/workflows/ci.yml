@@ -1,0 +1,112 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  node:
+    name: Node ${{ matrix.node-version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [18.x, 20.x, 22.x]
+
+    steps:
+      - name: Check out exact revision
+        uses: actions/checkout@v4
+
+      - name: Report exact head
+        run: |
+          echo "event_sha=${GITHUB_SHA}"
+          echo "checked_out_sha=$(git rev-parse HEAD)"
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Compile full TypeScript project
+        run: npm run build
+
+      - name: Run all Node tests
+        run: npm test
+
+      - name: Verify built package can load
+        run: node -e "require('./dist/index.js')"
+
+      - name: Inspect npm package without publishing
+        run: npm pack --dry-run
+
+  python:
+    name: Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.9', '3.10', '3.11', '3.12']
+
+    steps:
+      - name: Check out exact revision
+        uses: actions/checkout@v4
+
+      - name: Report exact head
+        run: |
+          echo "event_sha=${GITHUB_SHA}"
+          echo "checked_out_sha=$(git rev-parse HEAD)"
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install package
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e .
+
+      - name: Compile Python modules
+        run: python -m compileall -q python tests
+
+      - name: Run all Python tests
+        run: python -m unittest discover -s tests -p 'test_*.py' -v
+
+      - name: Verify installed package can load
+        run: python -c "import nymrel_swarm_protocol"
+
+  validation-complete:
+    name: Validation complete
+    if: always()
+    needs: [node, python]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail unless every matrix passed
+        env:
+          NODE_RESULT: ${{ needs.node.result }}
+          PYTHON_RESULT: ${{ needs.python.result }}
+        run: |
+          echo "node=${NODE_RESULT}"
+          echo "python=${PYTHON_RESULT}"
+          test "${NODE_RESULT}" = "success"
+          test "${PYTHON_RESULT}" = "success"
