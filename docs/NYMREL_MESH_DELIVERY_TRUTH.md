@@ -19,21 +19,22 @@ runtime dependency.
 | State | Evidence represented |
 |---|---|
 | `created` | A recipient-specific receipt was created for the message. |
-| `accepted` | The sender outbox persisted the envelope bytes. |
+| `accepted` | The sender outbox completed an exact-byte filesystem write. |
 | `routed` | A concrete recipient mailbox was selected. |
 | `deferred` | Delivery is intentionally delayed; it is neither delivered nor failed. |
-| `delivered` | The recipient mailbox persisted the envelope bytes. This does **not** mean the recipient runtime saw them. |
+| `delivered` | The recipient mailbox completed an exact-byte filesystem write. This does **not** mean the recipient runtime saw it. |
 | `observed` | The recipient runtime read and successfully verified the envelope. |
 | `acted` | An actor explicitly recorded action evidence. The mailbox never infers this state. |
 | `verified` | An explicit verification transition closed the receipt successfully. |
-| `delivery_unknown` | A required operation had an ambiguous result. It must be reconciled explicitly. |
+| `delivery_unknown` | A pre-observation delivery operation had an ambiguous result. It must be reconciled explicitly. |
 | `expired` | The delivery deadline passed without a later successful state. |
 | `dead_lettered` | Delivery cannot continue and has been retained for inspection. |
 | `revoked` | Current authority withdrew the delivery. |
 | `rejected` | The delivery was refused before successful routing. |
 
 `accepted`, `routed`, `delivered`, `observed`, `acted`, and `verified` are
-separate facts. No state implies a later one.
+separate facts. No state implies a later one, and proven delivery cannot be
+downgraded to `delivery_unknown`.
 
 ## State graph
 
@@ -54,6 +55,30 @@ The implementation enforces an explicit transition allowlist. Backward
 transitions and all transitions after a terminal state fail. Retrying the same
 state is idempotent and does not append another history entry.
 
+## Message identity and replay
+
+A message ID is permanently bound to its exact serialized envelope bytes and
+recipient set:
+
+- replaying the exact same direct message is idempotent;
+- the first receipt transition binds its sender and exact envelope digest, so an
+  interrupted receipt-only write cannot later be claimed by different bytes;
+- changing payload, sender, topic, recipient, checksum, or any other serialized
+  byte under the same ID fails as an envelope conflict;
+- a broadcast freezes its original recipient set on first send, so agents
+  registered later do not silently become recipients during replay;
+- a broadcast with no registered target fails before an outbox write or receipt
+  is created;
+- replay verifies that a receipt claiming `delivered` or later still has the
+  exact recipient copy in inbox or archive, but an integrity failure does not
+  rewrite historical delivery as unknown.
+
+One per-message lock serializes receipt and mailbox reconciliation. Envelope
+files are staged through an owner-only temporary file, flushed, and atomically
+published by rename. This proves the local filesystem operation completed; it
+does not claim storage survived device loss, controller-cache loss, or a power
+failure beyond the operating system's durability guarantees.
+
 ## Recipient-specific receipts
 
 A broadcast is not one delivery. It is a set of recipient-specific deliveries.
@@ -61,7 +86,7 @@ Each target receives an independent receipt, state, evidence chain, and terminal
 result. One recipient observing a broadcast cannot advance any other
 recipient's receipt.
 
-## Evidence boundary
+## Evidence and reason boundaries
 
 A transition can carry only this bounded evidence shape:
 
@@ -77,17 +102,20 @@ Allowed evidence kinds are exported as `DELIVERY_EVIDENCE_KINDS`. Unknown fields
 are rejected. The evidence object stores a reference and optional digest, not an
 arbitrary response body, credential, prompt, OTP, session token, or tool output.
 
-The optional transition note is bounded operational metadata. Callers must keep
-it non-sensitive; credential values and protected human inputs belong outside
-the delivery ledger.
+Free-form transition notes are not accepted. Optional operational context uses
+the closed `DELIVERY_REASON_CODES` enum. Receipt, transition, and evidence
+objects all reject unknown fields, preventing unreviewed data channels from
+appearing inside the ledger.
 
 ## Integrity and custody
 
 Each transition includes the prior transition hash and a deterministic SHA-256
 hash over the receipt identity and transition fields. Receipt reads verify the
-complete chain before returning data. Message and recipient identifiers are
-hashed before they are used as storage paths, and receipt replacement uses an
-atomic temporary-file rename with owner-only file mode on supported systems.
+complete chain, canonical UTC timestamps, monotonic transition time, closed
+object shapes, and the current head before returning data. Missing reads do not
+create directories. Message and recipient identifiers are hashed before they
+are used as storage paths, and receipt replacement uses an owner-only temporary
+file, flush, and atomic rename.
 
 This hash chain is **tamper-evident relative to a retained trusted head**. It is
 not a digital signature, independent timestamp, human-identity proof, remote
@@ -96,14 +124,15 @@ claims require separate Nymrel Trust and Evidence layers.
 
 ## Mailbox integration
 
-`FileMailboxManager.sendMessage()` now advances each recipient through:
+`FileMailboxManager.sendMessage()` advances each recipient through:
 
 ```text
 created → accepted → routed → delivered
 ```
 
-A successful return proves that the local recipient mailbox persisted the
-verified envelope. It does not claim that an agent read the message.
+A successful return proves that the local recipient mailbox completed an
+exact-byte write of the verified envelope. It does not claim that an agent read
+the message.
 
 `FileMailboxManager.receiveMessages()` advances a valid recipient message to
 `observed`. A corrupt envelope is skipped and does not manufacture observation
@@ -117,15 +146,16 @@ silently assigned historical states.
 ## TypeScript and Python parity
 
 Both implementations use the same state names, transition graph, evidence
-kinds, and length-prefixed transition-hash encoding. The shared deterministic
-test vector resolves to:
+kinds, reason codes, closed object shapes, and length-prefixed transition-hash
+encoding. The shared deterministic test vector resolves to:
 
 ```text
 afb4e0debaeca540d983b4e5e4b9f7ae11608a4509cbdb1e01baa369d66de140
 ```
 
 A change to either implementation that breaks this vector fails its native test
-suite.
+suite. The focused local harness currently passes 24 Node tests and 24 Python
+tests; repository CI on the exact pull-request head remains authoritative.
 
 ## Non-goals for this slice
 
