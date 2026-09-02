@@ -13,6 +13,21 @@ export * from './types';
 export { AtomicLockManager } from './fencing/lock';
 export { FencingClock } from './fencing/fencing';
 
+// Delivery Truth
+export {
+  DeliveryLedger,
+  DELIVERY_RECEIPT_VERSION,
+  DELIVERY_STATES,
+  DELIVERY_EVIDENCE_KINDS,
+  DeliveryState,
+  DeliveryEvidenceKind,
+  DeliveryEvidence,
+  DeliveryTransition,
+  DeliveryReceipt,
+  CreateDeliveryReceiptParams,
+  TransitionDeliveryParams,
+} from './delivery/delivery';
+
 // Bus & Mailbox Messaging
 export { EnvelopeEngine, CreateEnvelopeParams } from './bus/envelope';
 export { FileMailboxManager, ReceiveOptions } from './bus/mailbox';
