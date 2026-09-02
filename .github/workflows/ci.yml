@@ -25,14 +25,18 @@ jobs:
         node-version: [18.x, 20.x, 22.x]
 
     steps:
-      - name: Check out exact revision
+      - name: Check out exact pull-request head
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Report exact head
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
-          echo "event_sha=${GITHUB_SHA}"
+          echo "expected_sha=${EXPECTED_SHA}"
           echo "checked_out_sha=$(git rev-parse HEAD)"
-          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          test "$(git rev-parse HEAD)" = "${EXPECTED_SHA}"
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -65,14 +69,18 @@ jobs:
         python-version: ['3.9', '3.10', '3.11', '3.12']
 
     steps:
-      - name: Check out exact revision
+      - name: Check out exact pull-request head
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Report exact head
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
-          echo "event_sha=${GITHUB_SHA}"
+          echo "expected_sha=${EXPECTED_SHA}"
           echo "checked_out_sha=$(git rev-parse HEAD)"
-          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          test "$(git rev-parse HEAD)" = "${EXPECTED_SHA}"
 
       - name: Set up Python
         uses: actions/setup-python@v5
