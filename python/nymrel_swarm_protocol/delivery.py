@@ -48,6 +48,17 @@ DELIVERY_EVIDENCE_KINDS: Tuple[str, ...] = (
     "operator_decision",
 )
 
+DELIVERY_REASON_CODES: Tuple[str, ...] = (
+    "local_persistence_failed",
+    "recipient_evidence_reconciled",
+    "transport_result_ambiguous",
+    "explicit_reconciliation",
+    "deadline_expired",
+    "delivery_dead_lettered",
+    "authority_revoked",
+    "recipient_rejected",
+)
+
 TERMINAL_STATES = frozenset(("verified", "expired", "dead_lettered", "revoked", "rejected"))
 ALLOWED_TRANSITIONS: Mapping[str, Tuple[str, ...]] = {
     "created": ("accepted", "rejected", "revoked"),
@@ -62,9 +73,9 @@ ALLOWED_TRANSITIONS: Mapping[str, Tuple[str, ...]] = {
     ),
     "routed": ("delivered", "deferred", "delivery_unknown", "expired", "dead_lettered", "revoked"),
     "deferred": ("routed", "delivery_unknown", "expired", "dead_lettered", "revoked"),
-    "delivered": ("observed", "delivery_unknown", "expired", "dead_lettered", "revoked"),
-    "observed": ("acted", "delivery_unknown", "revoked"),
-    "acted": ("verified", "delivery_unknown", "revoked"),
+    "delivered": ("observed", "expired", "dead_lettered", "revoked"),
+    "observed": ("acted", "revoked"),
+    "acted": ("verified", "revoked"),
     "delivery_unknown": (
         "routed",
         "deferred",
@@ -82,6 +93,31 @@ ALLOWED_TRANSITIONS: Mapping[str, Tuple[str, ...]] = {
 }
 
 _EVIDENCE_KEYS = frozenset(("kind", "reference", "sha256"))
+_TRANSITION_KEYS = frozenset(
+    (
+        "sequence",
+        "from",
+        "to",
+        "actor",
+        "at",
+        "evidence",
+        "reason_code",
+        "previous_hash",
+        "hash",
+    )
+)
+_RECEIPT_KEYS = frozenset(
+    (
+        "version",
+        "message_id",
+        "recipient",
+        "current_state",
+        "created_at",
+        "updated_at",
+        "chain_hash",
+        "transitions",
+    )
+)
 
 
 def _assert_text(value: Any, field: str, max_length: int) -> str:
@@ -92,6 +128,13 @@ def _assert_text(value: Any, field: str, max_length: int) -> str:
     if any(unicodedata.category(char) == "Cc" for char in value):
         raise ValueError(f"{field} must not contain control characters")
     return value
+
+
+def _assert_closed_object(value: Mapping[str, Any], allowed: frozenset[str], field: str) -> None:
+    unknown = set(value) - allowed
+    if unknown:
+        key = sorted(unknown)[0]
+        raise ValueError(f'{field} field "{key}" is not allowed')
 
 
 def _parse_timestamp(value: str) -> datetime:
@@ -107,9 +150,21 @@ def _parse_timestamp(value: str) -> datetime:
     return parsed.astimezone(timezone.utc)
 
 
+def _canonical_timestamp(parsed: datetime) -> str:
+    return parsed.astimezone(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
 def _normalize_timestamp(value: Optional[str] = None) -> str:
     parsed = datetime.now(timezone.utc) if value is None else _parse_timestamp(_assert_text(value, "at", 64))
-    return parsed.isoformat(timespec="milliseconds").replace("+00:00", "Z")
+    return _canonical_timestamp(parsed)
+
+
+def _assert_canonical_timestamp(value: Any, field: str) -> datetime:
+    text = _assert_text(value, field, 64)
+    parsed = _parse_timestamp(text)
+    if _canonical_timestamp(parsed) != text:
+        raise ValueError(f"{field} must be a canonical UTC timestamp")
+    return parsed
 
 
 def _assert_evidence(value: Any) -> "DeliveryEvidence":
@@ -120,11 +175,7 @@ def _assert_evidence(value: Any) -> "DeliveryEvidence":
     else:
         raise ValueError("evidence must be an object")
 
-    unknown = set(candidate) - _EVIDENCE_KEYS
-    if unknown:
-        key = sorted(unknown)[0]
-        raise ValueError(f'evidence field "{key}" is not allowed')
-
+    _assert_closed_object(candidate, _EVIDENCE_KEYS, "evidence")
     kind = candidate.get("kind")
     if kind not in DELIVERY_EVIDENCE_KINDS:
         raise ValueError(f"evidence.kind must be one of: {', '.join(DELIVERY_EVIDENCE_KINDS)}")
@@ -134,6 +185,12 @@ def _assert_evidence(value: Any) -> "DeliveryEvidence":
         if not isinstance(digest, str) or len(digest) != 64 or any(ch not in "0123456789abcdef" for ch in digest):
             raise ValueError("evidence.sha256 must be a lowercase 64-character SHA-256 digest")
     return DeliveryEvidence(kind=kind, reference=reference, sha256=digest)
+
+
+def _assert_reason_code(value: Any) -> str:
+    if value not in DELIVERY_REASON_CODES:
+        raise ValueError(f"reason_code must be one of: {', '.join(DELIVERY_REASON_CODES)}")
+    return value
 
 
 def _encode_field(value: Optional[str]) -> str:
@@ -164,7 +221,7 @@ class DeliveryTransition:
     previous_hash: Optional[str]
     hash: str
     evidence: Optional[DeliveryEvidence] = None
-    note: Optional[str] = None
+    reason_code: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         result: Dict[str, Any] = {
@@ -178,8 +235,8 @@ class DeliveryTransition:
         }
         if self.evidence is not None:
             result["evidence"] = self.evidence.to_dict()
-        if self.note is not None:
-            result["note"] = self.note
+        if self.reason_code is not None:
+            result["reason_code"] = self.reason_code
         return result
 
 
@@ -216,13 +273,12 @@ class DeliveryLedger:
 
     @staticmethod
     def is_terminal(state: str) -> bool:
-        DeliveryLedger._assert_state(state)
-        return state in TERMINAL_STATES
+        return state in DELIVERY_STATES and state in TERMINAL_STATES
 
     @staticmethod
     def can_transition(from_state: str, to: str) -> bool:
-        DeliveryLedger._assert_state(from_state)
-        DeliveryLedger._assert_state(to)
+        if from_state not in DELIVERY_STATES or to not in DELIVERY_STATES:
+            return False
         return from_state == to or to in ALLOWED_TRANSITIONS[from_state]
 
     @staticmethod
@@ -236,7 +292,7 @@ class DeliveryLedger:
         actor: str,
         at: str,
         evidence: Optional[DeliveryEvidence],
-        note: Optional[str],
+        reason_code: Optional[str],
         previous_hash: Optional[str],
     ) -> str:
         fields = (
@@ -250,7 +306,7 @@ class DeliveryLedger:
             evidence.kind if evidence else None,
             evidence.reference if evidence else None,
             evidence.sha256 if evidence else None,
-            note,
+            reason_code,
             previous_hash,
         )
         material = "".join(_encode_field(value) for value in fields)
@@ -272,16 +328,16 @@ class DeliveryLedger:
         actor: str,
         at: Optional[str] = None,
         evidence: Optional[Any] = None,
-        note: Optional[str] = None,
+        reason_code: Optional[str] = None,
     ) -> DeliveryReceipt:
         _assert_text(message_id, "message_id", 512)
         _assert_text(recipient, "recipient", 512)
         _assert_text(actor, "actor", 512)
         normalized_evidence = _assert_evidence(evidence) if evidence is not None else None
-        if note is not None:
-            _assert_text(note, "note", 1000)
+        if reason_code is not None:
+            _assert_reason_code(reason_code)
 
-        receipt_path = self._receipt_path(message_id, recipient)
+        receipt_path = self._receipt_path(message_id, recipient, create_parent=True)
         lock_name = self._lock_name(message_id, recipient)
 
         def operation() -> DeliveryReceipt:
@@ -299,7 +355,7 @@ class DeliveryLedger:
                 actor=actor,
                 at=timestamp,
                 evidence=normalized_evidence,
-                note=note,
+                reason_code=reason_code,
                 previous_hash=None,
             )
             transition = DeliveryTransition(
@@ -309,7 +365,7 @@ class DeliveryLedger:
                 actor=actor,
                 at=timestamp,
                 evidence=normalized_evidence,
-                note=note,
+                reason_code=reason_code,
                 previous_hash=None,
                 hash=transition_hash,
             )
@@ -337,17 +393,17 @@ class DeliveryLedger:
         actor: str,
         at: Optional[str] = None,
         evidence: Optional[Any] = None,
-        note: Optional[str] = None,
+        reason_code: Optional[str] = None,
     ) -> DeliveryReceipt:
         _assert_text(message_id, "message_id", 512)
         _assert_text(recipient, "recipient", 512)
         _assert_text(actor, "actor", 512)
         self._assert_state(to)
         normalized_evidence = _assert_evidence(evidence) if evidence is not None else None
-        if note is not None:
-            _assert_text(note, "note", 1000)
+        if reason_code is not None:
+            _assert_reason_code(reason_code)
 
-        receipt_path = self._receipt_path(message_id, recipient)
+        receipt_path = self._receipt_path(message_id, recipient, create_parent=False)
         lock_name = self._lock_name(message_id, recipient)
 
         def operation() -> DeliveryReceipt:
@@ -377,7 +433,7 @@ class DeliveryLedger:
                 actor=actor,
                 at=timestamp,
                 evidence=normalized_evidence,
-                note=note,
+                reason_code=reason_code,
                 previous_hash=receipt.chain_hash,
             )
             transition = DeliveryTransition(
@@ -387,7 +443,7 @@ class DeliveryLedger:
                 actor=actor,
                 at=timestamp,
                 evidence=normalized_evidence,
-                note=note,
+                reason_code=reason_code,
                 previous_hash=receipt.chain_hash,
                 hash=transition_hash,
             )
@@ -409,7 +465,7 @@ class DeliveryLedger:
     def get(self, message_id: str, recipient: str) -> Optional[DeliveryReceipt]:
         _assert_text(message_id, "message_id", 512)
         _assert_text(recipient, "recipient", 512)
-        return self._read_receipt(self._receipt_path(message_id, recipient))
+        return self._read_receipt(self._receipt_path(message_id, recipient, create_parent=False))
 
     def list(self, message_id: Optional[str] = None) -> List[DeliveryReceipt]:
         if message_id is not None:
@@ -445,6 +501,7 @@ class DeliveryLedger:
         data = value.to_dict() if isinstance(value, DeliveryReceipt) else value
         if not isinstance(data, dict):
             raise ValueError("Delivery receipt must be an object")
+        _assert_closed_object(data, _RECEIPT_KEYS, "receipt")
         if data.get("version") != DELIVERY_RECEIPT_VERSION:
             raise ValueError(f"Unsupported delivery receipt version: {data.get('version')}")
 
@@ -453,8 +510,10 @@ class DeliveryLedger:
         current_state = DeliveryLedger._assert_state(data.get("current_state"))
         created_at = _assert_text(data.get("created_at"), "receipt.created_at", 64)
         updated_at = _assert_text(data.get("updated_at"), "receipt.updated_at", 64)
-        _parse_timestamp(created_at)
-        _parse_timestamp(updated_at)
+        created_timestamp = _assert_canonical_timestamp(created_at, "receipt.created_at")
+        updated_timestamp = _assert_canonical_timestamp(updated_at, "receipt.updated_at")
+        if updated_timestamp < created_timestamp:
+            raise ValueError("receipt.updated_at must not precede receipt.created_at")
         chain_hash = data.get("chain_hash")
         if not isinstance(chain_hash, str) or len(chain_hash) != 64 or any(ch not in "0123456789abcdef" for ch in chain_hash):
             raise ValueError("receipt.chain_hash is invalid")
@@ -466,9 +525,11 @@ class DeliveryLedger:
         transitions: List[DeliveryTransition] = []
         prior_state: Optional[str] = None
         prior_hash: Optional[str] = None
+        prior_timestamp: Optional[datetime] = None
         for index, raw_transition in enumerate(raw_transitions):
             if not isinstance(raw_transition, dict):
                 raise ValueError(f"receipt.transitions[{index}] is invalid")
+            _assert_closed_object(raw_transition, _TRANSITION_KEYS, f"receipt.transitions[{index}]")
             if raw_transition.get("sequence") != index + 1:
                 raise ValueError("Delivery transition sequence is not contiguous")
             if raw_transition.get("from") != prior_state:
@@ -482,11 +543,13 @@ class DeliveryLedger:
 
             actor = _assert_text(raw_transition.get("actor"), "transition.actor", 512)
             at = _assert_text(raw_transition.get("at"), "transition.at", 64)
-            _parse_timestamp(at)
+            transition_timestamp = _assert_canonical_timestamp(at, "transition.at")
+            if prior_timestamp is not None and transition_timestamp < prior_timestamp:
+                raise ValueError("Delivery transition timestamps must not move backward")
             evidence = _assert_evidence(raw_transition["evidence"]) if "evidence" in raw_transition else None
-            note = raw_transition.get("note")
-            if note is not None:
-                _assert_text(note, "note", 1000)
+            reason_code = raw_transition.get("reason_code")
+            if reason_code is not None:
+                _assert_reason_code(reason_code)
             previous_hash = raw_transition.get("previous_hash")
             if previous_hash != prior_hash:
                 raise ValueError("Delivery transition hash chain predecessor is invalid")
@@ -507,7 +570,7 @@ class DeliveryLedger:
                 actor=actor,
                 at=at,
                 evidence=evidence,
-                note=note,
+                reason_code=reason_code,
                 previous_hash=previous_hash,
             )
             if expected_hash != transition_hash:
@@ -520,13 +583,14 @@ class DeliveryLedger:
                 actor=actor,
                 at=at,
                 evidence=evidence,
-                note=note,
+                reason_code=reason_code,
                 previous_hash=previous_hash,
                 hash=transition_hash,
             )
             transitions.append(transition)
             prior_state = to
             prior_hash = transition_hash
+            prior_timestamp = transition_timestamp
 
         if current_state != prior_state or chain_hash != prior_hash:
             raise ValueError("Delivery receipt head does not match its transition chain")
@@ -550,9 +614,10 @@ class DeliveryLedger:
     def _digest(value: str) -> str:
         return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
-    def _receipt_path(self, message_id: str, recipient: str) -> str:
+    def _receipt_path(self, message_id: str, recipient: str, *, create_parent: bool) -> str:
         directory = os.path.join(self.receipts_dir, self._digest(message_id))
-        os.makedirs(directory, exist_ok=True)
+        if create_parent:
+            os.makedirs(directory, exist_ok=True)
         return os.path.join(directory, f"{self._digest(recipient)}.json")
 
     def _lock_name(self, message_id: str, recipient: str) -> str:
@@ -573,6 +638,8 @@ class DeliveryLedger:
             with os.fdopen(file_descriptor, "w", encoding="utf-8") as handle:
                 json.dump(verified.to_dict(), handle, indent=2)
                 handle.write("\n")
+                handle.flush()
+                os.fsync(handle.fileno())
             os.replace(temporary_path, receipt_path)
         finally:
             if os.path.exists(temporary_path):
