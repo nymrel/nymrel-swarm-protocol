@@ -198,6 +198,10 @@ def _encode_field(value: Optional[str]) -> str:
     return f"{len(normalized.encode('utf-8'))}:{normalized}"
 
 
+class DeliveryReceiptConflictError(ValueError):
+    """A receipt key was replayed with a different creation contract."""
+
+
 @dataclass(frozen=True)
 class DeliveryEvidence:
     kind: str
@@ -343,6 +347,23 @@ class DeliveryLedger:
         def operation() -> DeliveryReceipt:
             existing = self._read_receipt(receipt_path)
             if existing is not None:
+                creation = existing.transitions[0]
+                same_evidence = (
+                    (creation.evidence.to_dict() if creation.evidence else None)
+                    == (normalized_evidence.to_dict() if normalized_evidence else None)
+                )
+                requested_at_matches = (
+                    at is None or creation.at == _normalize_timestamp(at)
+                )
+                if (
+                    creation.actor != actor
+                    or not same_evidence
+                    or creation.reason_code != reason_code
+                    or not requested_at_matches
+                ):
+                    raise DeliveryReceiptConflictError(
+                        "Delivery receipt already exists with a different creation contract"
+                    )
                 return existing
 
             timestamp = _normalize_timestamp(at)
