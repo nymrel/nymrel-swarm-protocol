@@ -12,6 +12,15 @@ from .fencing import (
     FencingToken,
     FencingState,
 )
+from .delivery import (
+    DELIVERY_RECEIPT_VERSION,
+    DELIVERY_STATES,
+    DELIVERY_EVIDENCE_KINDS,
+    DeliveryEvidence,
+    DeliveryTransition,
+    DeliveryReceipt,
+    DeliveryLedger,
+)
 from .bus import (
     EnvelopeHeader,
     EnvelopeV2,
@@ -53,6 +62,13 @@ __all__ = [
     "FencingClock",
     "FencingToken",
     "FencingState",
+    "DELIVERY_RECEIPT_VERSION",
+    "DELIVERY_STATES",
+    "DELIVERY_EVIDENCE_KINDS",
+    "DeliveryEvidence",
+    "DeliveryTransition",
+    "DeliveryReceipt",
+    "DeliveryLedger",
     "EnvelopeHeader",
     "EnvelopeV2",
     "EnvelopeEngine",
