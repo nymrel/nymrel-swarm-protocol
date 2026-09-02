@@ -16,11 +16,14 @@ export { FencingClock } from './fencing/fencing';
 // Delivery Truth
 export {
   DeliveryLedger,
+  DeliveryReceiptConflictError,
   DELIVERY_RECEIPT_VERSION,
   DELIVERY_STATES,
   DELIVERY_EVIDENCE_KINDS,
+  DELIVERY_REASON_CODES,
   DeliveryState,
   DeliveryEvidenceKind,
+  DeliveryReasonCode,
   DeliveryEvidence,
   DeliveryTransition,
   DeliveryReceipt,
@@ -30,7 +33,7 @@ export {
 
 // Bus & Mailbox Messaging
 export { EnvelopeEngine, CreateEnvelopeParams } from './bus/envelope';
-export { FileMailboxManager, ReceiveOptions } from './bus/mailbox';
+export { FileMailboxManager, ReceiveOptions, EnvelopeConflictError } from './bus/mailbox';
 
 // Resource Claims & Leases
 export { ClaimManager } from './claims/claims';
