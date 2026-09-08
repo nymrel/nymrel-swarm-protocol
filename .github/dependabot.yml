@@ -1,0 +1,43 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    cooldown:
+      default-days: 7
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '09:00'
+      timezone: America/Los_Angeles
+    open-pull-requests-limit: 5
+    groups:
+      node-development-tooling:
+        patterns:
+          - '@types/*'
+          - typescript
+
+  - package-ecosystem: pip
+    cooldown:
+      default-days: 7
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '09:15'
+      timezone: America/Los_Angeles
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: github-actions
+    cooldown:
+      default-days: 7
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '09:30'
+      timezone: America/Los_Angeles
+    open-pull-requests-limit: 5
+    groups:
+      workflow-actions:
+        patterns:
+          - '*'

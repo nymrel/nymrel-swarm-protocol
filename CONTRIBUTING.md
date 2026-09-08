@@ -11,25 +11,31 @@ We welcome contributions from developers, researchers, and agentic systems engin
 ## Development Workflow
 
 ### TypeScript / Node.js
+
+The repository defaults to Node.js 24. On Node.js 22 or 24, activate the
+reviewed npm CLI with Corepack. Node.js 26 is supported but does not bundle
+Corepack; before entering the checkout, run
+`npm install --global npm@11.19.1 --ignore-scripts --no-audit --no-fund`.
+
 ```bash
-# Install development dependencies
-npm install
+# Node.js 22/24 bootstrap. Node.js 26 uses the external-checkout bootstrap above.
+corepack enable npm
+npm --version # must print 11.19.1
+npm ci --ignore-scripts --no-audit --no-fund
 
-# Typecheck and build
-npm run build
-npm run typecheck
-
-# Run test suite
-npm test
+# Run the complete source, package, release, and dependency gates.
+npm run check
+npm run audit
+npm run audit:prod
 ```
 
 ### Python
 ```bash
-# Install in editable mode
-pip install -e .
+# Use a maintained Python 3.11 through 3.14 interpreter.
+python -m pip install --disable-pip-version-check --no-deps -e .
 
 # Run test suite
-python -m unittest discover -s tests
+python -m unittest discover -s tests -p 'test_*.py'
 ```
 
 ## Submitting Pull Requests
@@ -37,5 +43,5 @@ python -m unittest discover -s tests
 1. Fork the repository.
 2. Create a feature branch: `git checkout -b feature/my-cool-feature`.
 3. Add unit & concurrency tests covering both TypeScript and Python.
-4. Ensure all tests pass with 100% green execution.
+4. Run the complete Node and Python gates above and keep generated `dist/` byte-current.
 5. Open a Pull Request with a clear description and test receipts.

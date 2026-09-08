@@ -1,0 +1,124 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  node:
+    name: Node ${{ matrix.node-version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [22.x, 24.x, 26.x]
+
+    steps:
+      - name: Check out exact pull-request head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Report exact head
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          echo "expected_sha=${EXPECTED_SHA}"
+          echo "checked_out_sha=$(git rev-parse HEAD)"
+          test "$(git rev-parse HEAD)" = "${EXPECTED_SHA}"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ matrix.node-version }}
+          package-manager-cache: false
+
+      - name: Install exact npm
+        working-directory: ${{ runner.temp }}
+        run: npm install --global npm@11.19.1 --ignore-scripts --no-audit --no-fund
+
+      - name: Install locked dependencies without lifecycle hooks
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Verify TypeScript, runtime, and release contracts
+        run: npm run check
+
+      - name: Audit dependency boundaries
+        run: |
+          npm run audit
+          npm run audit:prod
+
+      - name: Verify built package can load
+        run: node -e "require('./dist/index.js')"
+
+      - name: Inspect npm package without publishing
+        run: npm pack --dry-run
+
+  python:
+    name: Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.11', '3.12', '3.13', '3.14']
+
+    steps:
+      - name: Check out exact pull-request head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Report exact head
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          echo "expected_sha=${EXPECTED_SHA}"
+          echo "checked_out_sha=$(git rev-parse HEAD)"
+          test "$(git rev-parse HEAD)" = "${EXPECTED_SHA}"
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install package
+        run: |
+          python -m pip install --disable-pip-version-check --upgrade pip
+          python -m pip install --disable-pip-version-check --no-deps .
+
+      - name: Compile Python modules
+        run: python -m compileall -q python tests
+
+      - name: Run all Python tests
+        run: python -m unittest discover -s tests -p 'test_*.py' -v
+
+      - name: Verify installed package can load
+        run: python -c "import nymrel_swarm_protocol"
+
+  validation-complete:
+    name: Validation complete
+    if: always()
+    needs: [node, python]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail unless every matrix passed
+        env:
+          NODE_RESULT: ${{ needs.node.result }}
+          PYTHON_RESULT: ${{ needs.python.result }}
+        run: |
+          echo "node=${NODE_RESULT}"
+          echo "python=${PYTHON_RESULT}"
+          test "${NODE_RESULT}" = "success"
+          test "${PYTHON_RESULT}" = "success"
