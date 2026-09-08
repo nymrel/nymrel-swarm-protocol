@@ -90,6 +90,42 @@ class DeliveryLedgerTests(unittest.TestCase):
         self.assertEqual(len(retry.transitions), 2)
         self.assertEqual(first.chain_hash, retry.chain_hash)
 
+    def test_same_state_retry_rejects_conflicting_metadata(self):
+        self.ledger.create(message_id="msg-retry-contract", recipient="gemini", actor="sol")
+        self.ledger.transition(
+            message_id="msg-retry-contract",
+            recipient="gemini",
+            to="accepted",
+            actor="sol",
+            evidence={
+                "kind": "outbox_persisted",
+                "reference": "file://outbox/msg-retry-contract",
+            },
+            reason_code="recipient_evidence_reconciled",
+        )
+        with self.assertRaisesRegex(ValueError, "Conflicting same-state retry"):
+            self.ledger.transition(
+                message_id="msg-retry-contract",
+                recipient="gemini",
+                to="accepted",
+                actor="other-actor",
+                evidence={
+                    "kind": "outbox_persisted",
+                    "reference": "file://outbox/msg-retry-contract",
+                },
+                reason_code="recipient_evidence_reconciled",
+            )
+        with self.assertRaisesRegex(ValueError, "Conflicting same-state retry"):
+            self.ledger.transition(
+                message_id="msg-retry-contract",
+                recipient="gemini",
+                to="accepted",
+                actor="sol",
+                evidence={"kind": "outbox_persisted", "reference": "file://outbox/different"},
+                reason_code="recipient_evidence_reconciled",
+            )
+        self.assertEqual(len(self.ledger.get("msg-retry-contract", "gemini").transitions), 2)
+
     def test_rejects_backward_and_post_terminal_transitions(self):
         self.ledger.create(message_id="msg-3", recipient="grok", actor="sol")
         self.ledger.transition(

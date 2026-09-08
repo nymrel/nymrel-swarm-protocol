@@ -1,6 +1,6 @@
 # Nymrel Mesh delivery truth
 
-Status: draft implementation contract  
+Status: draft implementation contract
 Control issue: `JalenBuildsHub/portfolio-control#253`
 
 ## Purpose

@@ -434,6 +434,17 @@ class DeliveryLedger:
                     f'No delivery receipt exists for message "{message_id}" and recipient "{recipient}"'
                 )
             if receipt.current_state == to:
+                prior = receipt.transitions[-1]
+                if (
+                    prior.actor != actor
+                    or prior.evidence != normalized_evidence
+                    or prior.reason_code != reason_code
+                ):
+                    raise ValueError(
+                        f'Conflicting same-state retry for message "{message_id}" and recipient "{recipient}"'
+                    )
+                if at is not None and _normalize_timestamp(at) != prior.at:
+                    raise ValueError("Conflicting same-state retry timestamp")
                 return receipt
             if not self.can_transition(receipt.current_state, to):
                 raise ValueError(

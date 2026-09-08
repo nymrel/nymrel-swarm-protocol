@@ -225,6 +225,15 @@ function assertReasonCode(reasonCode: unknown): asserts reasonCode is DeliveryRe
   }
 }
 
+function matchesEvidence(
+  left: DeliveryEvidence | undefined,
+  right: DeliveryEvidence | undefined
+): boolean {
+  return left?.kind === right?.kind
+    && left?.reference === right?.reference
+    && left?.sha256 === right?.sha256;
+}
+
 function encodeField(value: string | null | undefined): string {
   const normalized = value ?? '';
   return `${Buffer.byteLength(normalized, 'utf8')}:${normalized}`;
@@ -371,6 +380,18 @@ export class DeliveryLedger {
       }
 
       if (receipt.current_state === params.to) {
+        const prior = receipt.transitions.at(-1);
+        if (!prior
+          || prior.actor !== params.actor
+          || !matchesEvidence(prior.evidence, params.evidence)
+          || prior.reason_code !== params.reason_code) {
+          throw new Error(
+            `Conflicting same-state retry for message "${params.message_id}" and recipient "${params.recipient}"`
+          );
+        }
+        if (params.at !== undefined && normalizeTimestamp(params.at) !== prior.at) {
+          throw new Error('Conflicting same-state retry timestamp');
+        }
         return cloneReceipt(receipt);
       }
 

@@ -100,6 +100,42 @@ describe('DeliveryLedger', () => {
     assert.equal(first.chain_hash, retry.chain_hash);
   });
 
+  test('same-state retries reject conflicting actor, evidence, and reason metadata', async () => {
+    await ledger.create({ message_id: 'msg-retry-contract', recipient: 'gemini', actor: 'sol' });
+    await ledger.transition({
+      message_id: 'msg-retry-contract',
+      recipient: 'gemini',
+      to: 'accepted',
+      actor: 'sol',
+      evidence: { kind: 'outbox_persisted', reference: 'file://outbox/msg-retry-contract' },
+      reason_code: 'recipient_evidence_reconciled',
+    });
+
+    await assert.rejects(
+      ledger.transition({
+        message_id: 'msg-retry-contract',
+        recipient: 'gemini',
+        to: 'accepted',
+        actor: 'other-actor',
+        evidence: { kind: 'outbox_persisted', reference: 'file://outbox/msg-retry-contract' },
+        reason_code: 'recipient_evidence_reconciled',
+      }),
+      /Conflicting same-state retry/
+    );
+    await assert.rejects(
+      ledger.transition({
+        message_id: 'msg-retry-contract',
+        recipient: 'gemini',
+        to: 'accepted',
+        actor: 'sol',
+        evidence: { kind: 'outbox_persisted', reference: 'file://outbox/different' },
+        reason_code: 'recipient_evidence_reconciled',
+      }),
+      /Conflicting same-state retry/
+    );
+    assert.equal(ledger.get('msg-retry-contract', 'gemini').transitions.length, 2);
+  });
+
   test('rejects backward and post-terminal transitions', async () => {
     await ledger.create({ message_id: 'msg-3', recipient: 'grok', actor: 'sol' });
     await ledger.transition({ message_id: 'msg-3', recipient: 'grok', to: 'accepted', actor: 'sol' });
