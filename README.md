@@ -1,8 +1,8 @@
 # Nymrel Swarm Protocol (`@nymrel/swarm-protocol`)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D18.0.0-339933?logo=node.js)](https://nodejs.org)
-[![Python](https://img.shields.io/badge/Python-%3E%3D3.9-3776AB?logo=python)](https://python.org)
+[![Node.js](https://img.shields.io/badge/Node.js-22%20%7C%2024%20%7C%2026-339933?logo=node.js)](https://nodejs.org)
+[![Python](https://img.shields.io/badge/Python-3.11--3.14-3776AB?logo=python)](https://python.org)
 [![Zero Runtime Dependencies](https://img.shields.io/badge/Dependencies-0_Runtime-blueviolet.svg)](#zero-dependencies)
 
 **Zero-dependency, dual-language (TypeScript + Python) Multi-Agent Swarm Protocol, Two-Seat Command Studio Contract, and File-Based Bus Engine for autonomous AI coding agents.**
@@ -20,7 +20,7 @@ Built by **Nymrel** under **JalenBuilds LLC**.
                    +-------------+                  |                  +-------------+
                    |                                |                                |
        +-----------------------+        +-----------------------+        +-----------------------+
-       |      CLAUDE CODE      |        |       CODEX CLI       |        |    CURSOR COMPOSER    |
+       |      CLAUDE CODE      |        |       CODEX CLI       |        |        CURSOR         |
        |     (Frontend/UX)     |        |   (Backend / Infra)   |        |   (Research / Scan)   |
        +-----------------------+        +-----------------------+        +-----------------------+
                    |                                |                                |
@@ -49,14 +49,52 @@ Built by **Nymrel** under **JalenBuilds LLC**.
 - **Monotonic Fencing Tokens**: Protect against split-brain scenarios and zombie writers. Expired or lagged workers presenting older generation tokens fail closed immediately.
 - **Path-Hierarchical Resource Claims**: Fine-grained locking at the directory or file level with mode awareness (`exclusive` write vs `shared` read/review), auto-expiring leases, and auto-arbiter cleanup.
 - **Two-Seat Command Studio Protocol**: Clean separation of powers between the active `mission_owner` (owns outcome and terminal closeout) and the independent `studio_controller` (watches health, verifies proof, and triggers emergency recovery without countermanding active writes).
-- **Out-of-the-Box Adapters**: Drop-in adapters for **Claude Code**, **Codex CLI**, **Gemini CLI**, **Cursor Composer**, and **Local Ollama** models.
-- **100% TypeScript + Python Parity**: Complete symmetry across both language ecosystems.
+- **Out-of-the-Box Adapters**: Drop-in adapters for **Claude Code**, **Codex CLI**, **Gemini CLI**, **Cursor**, and **Local Ollama** models.
+- **Dual TypeScript + Python Implementations**: The shared protocol contract is implemented and independently tested in both language ecosystems.
 
 ---
 
-## 🚀 1-Minute Quickstart
+## 🚀 Quickstart
+
+> [!IMPORTANT]
+> As of 2026-08-29, neither registry package has been published. The npm and PyPI commands below are reserved for the first trusted release and will fail until the registry owners finish their provider-side configuration. Use a pinned source checkout in the meantime.
+
+### Install from source today
+
+The checked-in `.node-version` selects Node.js 24, where Corepack is bundled.
+Node.js 22 works the same way. Node.js 26 is also supported, but it no longer
+bundles Corepack: from a directory outside this checkout, first run
+`npm install --global npm@11.19.1 --ignore-scripts --no-audit --no-fund`.
+Every path must report npm `11.19.1` before repository package commands run.
+
+```bash
+git clone https://github.com/nymrel/nymrel-swarm-protocol.git
+cd nymrel-swarm-protocol
+
+# Node.js 22/24: activate the reviewed npm, then validate and pack.
+# On Node.js 26, skip Corepack and use the external bootstrap above.
+corepack enable npm
+npm --version # must print 11.19.1
+npm ci --ignore-scripts --no-audit --no-fund
+npm run check
+npm run audit
+npm run audit:prod
+npm pack --ignore-scripts
+
+# Python: install the local zero-dependency package.
+python -m pip install --no-deps .
+python -m unittest discover -s tests -p 'test_*.py'
+```
+
+Pin the checkout to a reviewed commit before adopting it in an automated or production workflow.
+
+### Supported runtimes
+
+The source contract supports maintained Node.js 22, 24, and 26 releases and Python 3.11 through 3.14. The preferred contributor runtime is recorded in `.node-version`; `packageManager` and `devEngines` fail closed on package-manager drift. End-of-life runtimes are intentionally excluded from CI and support claims.
 
 ### TypeScript / Node.js
+
+After the first trusted npm release:
 
 ```bash
 npm install @nymrel/swarm-protocol
@@ -101,6 +139,8 @@ codex.destroy();
 ---
 
 ### Python
+
+After the first trusted PyPI release:
 
 ```bash
 pip install nymrel-swarm-protocol
@@ -222,11 +262,13 @@ In accordance with Nymrel entity standards:
 Both TypeScript and Python engines include comprehensive unit & concurrency test suites.
 
 ```bash
-# Run TypeScript/Node.js tests
-npm run test:ts
+# Run the complete TypeScript/package contract
+npm --version # must print 11.19.1; use the source-install bootstrap above
+npm ci --ignore-scripts --no-audit --no-fund
+npm run check
 
 # Run Python tests
-python -m unittest discover -s tests
+python -m unittest discover -s tests -p 'test_*.py'
 ```
 
 ---
