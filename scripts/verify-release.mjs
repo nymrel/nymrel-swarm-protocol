@@ -83,7 +83,7 @@ function expectArrayEqual(actual, expected, label) {
 
 function main() {
   const root = path.resolve(option('--root', process.cwd()));
-  const requestedTag = option('--tag', process.env.GITHUB_REF_NAME);
+  const requestedTag = option('--tag', process.env.GITHUB_REF_TYPE === 'tag' ? process.env.GITHUB_REF_NAME : undefined);
   const npmPackage = JSON.parse(readText(root, 'package.json'));
   const tag = requestedTag ?? `v${npmPackage.version}`;
   if (!/^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(tag)) {

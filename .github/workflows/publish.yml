@@ -205,15 +205,15 @@ jobs:
           npm pack --ignore-scripts --pack-destination release/npm
           mapfile -t packages < <(find release/npm -maxdepth 1 -type f -name '*.tgz' -print)
           test "${#packages[@]}" -eq 1
-          if tar -tzf "${packages[0]}" | grep -Eq '(__pycache__/|\.pyc$|\.egg-info/)'; then
+          if tar -tzf "${GITHUB_WORKSPACE}/${packages[0]}" | grep -Eq '(__pycache__/|\.pyc$|\.egg-info/)'; then
             echo "::error::npm distribution contains generated Python metadata"
             exit 1
           fi
           consumer="${RUNNER_TEMP}/npm-consumer"
           mkdir -p "${consumer}"
           printf '%s\n' '{"name":"nymrel-swarm-consumer","private":true}' > "${consumer}/package.json"
-          npm install --ignore-scripts --no-audit --no-fund --prefix "${consumer}" "${packages[0]}"
-          NODE_PATH="${consumer}/node_modules" node -e "const api = require('@nymrel/swarm-protocol'); if (typeof api.ClaimManager !== 'function' || typeof api.TwoSeatProtocol !== 'function') process.exit(1)"
+          npm install --ignore-scripts --no-audit --no-fund --prefix "${consumer}" "${GITHUB_WORKSPACE}/${packages[0]}"
+          (cd "${consumer}" && node -e "const api = require('@nymrel/swarm-protocol'); if (typeof api.ClaimManager !== 'function' || typeof api.TwoSeatProtocol !== 'function') process.exit(1)")
           "${consumer}/node_modules/.bin/swarm-protocol" --help
 
       - name: Set up Python 3.14
@@ -295,7 +295,7 @@ jobs:
         run: |
           mapfile -t packages < <(find release/npm -maxdepth 1 -type f -name '*.tgz' -print)
           test "${#packages[@]}" -eq 1
-          npm publish "${packages[0]}" --access public
+          npm publish "${GITHUB_WORKSPACE}/${packages[0]}" --access public
 
   publish-pypi:
     name: Publish PyPI with trusted publishing

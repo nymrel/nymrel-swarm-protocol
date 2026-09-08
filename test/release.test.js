@@ -82,6 +82,18 @@ function withFixture(overrides, callback) {
 }
 
 describe('release verification', () => {
+  test('uses GitHub ref names only for release tags', () => withFixture({}, (root) => {
+    const run = (type, name) => spawnSync(process.execPath, [verifier, '--root', root], {
+      encoding: 'utf8', env: { ...process.env, GITHUB_REF_TYPE: type, GITHUB_REF_NAME: name },
+    });
+    for (const name of ['9/merge', 'main']) {
+      const result = run('branch', name);
+      assert.equal(result.status, 0, result.stderr);
+    }
+    assert.equal(run('tag', 'v1.0.0').status, 0);
+    assert.notEqual(run('tag', 'v1.0.1').status, 0);
+    assert.match(run('tag', 'v1.0.0-beta.1').stderr, /stable vMAJOR/);
+  }));
   test('accepts exact dual-package version and repository parity', () => {
     withFixture({}, (root) => {
       const result = verify(root, 'v1.0.0');
