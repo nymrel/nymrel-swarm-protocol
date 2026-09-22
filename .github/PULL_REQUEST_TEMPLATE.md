@@ -12,8 +12,8 @@ Closes #<!-- issue number -->
 
 <!-- Confirm each check ran locally before opening this PR -->
 
-- [ ] `npm ci` succeeds
-- [ ] `npm test` passes
-- [ ] `npm run build` succeeds
-- [ ] Linter passes (if the repo defines one)
+- [ ] `npm ci --ignore-scripts --no-audit --no-fund` succeeds
+- [ ] `npm run check` passes (build + TypeScript suite + release verify)
+- [ ] `npm run audit` and `npm run audit:prod` pass
+- [ ] Python parity suite passes: `python -m unittest discover -s tests -p 'test_*.py'`
 - [ ] Docs updated where behavior changed
