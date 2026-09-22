@@ -46,7 +46,7 @@ jobs:
 
       - name: Install exact npm
         working-directory: ${{ runner.temp }}
-        run: npm install --global npm@11.19.1 --ignore-scripts --no-audit --no-fund
+        run: npm install --global npm@12.0.2 --ignore-scripts --no-audit --no-fund
 
       - name: Install locked dependencies without lifecycle hooks
         run: npm ci --ignore-scripts --no-audit --no-fund

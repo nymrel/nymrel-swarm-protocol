@@ -47,7 +47,7 @@ jobs:
         # The package manager under test must exist before fail-closed devEngines is evaluated.
         # zizmor: ignore[adhoc-packages]
         working-directory: ${{ runner.temp }}
-        run: npm install --global npm@11.19.1 --ignore-scripts --no-audit --no-fund
+        run: npm install --global npm@12.0.2 --ignore-scripts --no-audit --no-fund
 
       - name: Install locked dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
@@ -130,7 +130,7 @@ jobs:
       - name: Set up the trusted-publishing npm CLI
         # zizmor: ignore[adhoc-packages]
         working-directory: ${{ runner.temp }}
-        run: npm install --global npm@11.19.1 --ignore-scripts --no-audit --no-fund
+        run: npm install --global npm@12.0.2 --ignore-scripts --no-audit --no-fund
 
       - name: Audit locked Node.js dependencies
         run: |
@@ -189,7 +189,7 @@ jobs:
       - name: Set up the trusted-publishing npm CLI
         # zizmor: ignore[adhoc-packages]
         working-directory: ${{ runner.temp }}
-        run: npm install --global npm@11.19.1 --ignore-scripts --no-audit --no-fund
+        run: npm install --global npm@12.0.2 --ignore-scripts --no-audit --no-fund
 
       - name: Verify, build, and pack the npm distribution
         # Installing the just-built local archive is the clean-room consumer acceptance gate.
@@ -288,7 +288,7 @@ jobs:
       - name: Set up the trusted-publishing npm CLI
         # zizmor: ignore[adhoc-packages]
         working-directory: ${{ runner.temp }}
-        run: npm install --global npm@11.19.1 --ignore-scripts --no-audit --no-fund
+        run: npm install --global npm@12.0.2 --ignore-scripts --no-audit --no-fund
 
       - name: Publish exactly one npm distribution
         shell: bash

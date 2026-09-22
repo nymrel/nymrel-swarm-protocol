@@ -10,7 +10,7 @@ const EXPECTED = Object.freeze({
   repository: 'https://github.com/nymrel/nymrel-swarm-protocol.git',
   repositoryPage: 'https://github.com/nymrel/nymrel-swarm-protocol',
   issues: 'https://github.com/nymrel/nymrel-swarm-protocol/issues',
-  packageManager: 'npm@11.19.1',
+  packageManager: 'npm@12.0.2',
   nodeRange: '>=22.22.2 <27',
   pythonRange: '>=3.11',
   pythonBuildBackend: 'setuptools.build_meta',
@@ -111,7 +111,7 @@ function main() {
   expectEqual(npmPackage.devEngines?.runtime?.version, EXPECTED.nodeRange, 'npm development runtime');
   expectEqual(npmPackage.devEngines?.runtime?.onFail, 'error', 'npm development runtime failure policy');
   expectEqual(npmPackage.devEngines?.packageManager?.name, 'npm', 'npm development package-manager name');
-  expectEqual(npmPackage.devEngines?.packageManager?.version, '11.19.1', 'npm development package manager');
+  expectEqual(npmPackage.devEngines?.packageManager?.version, '12.0.2', 'npm development package manager');
   expectEqual(npmPackage.devEngines?.packageManager?.onFail, 'error', 'npm development package-manager failure policy');
   expectEqual(npmPackage.sideEffects, false, 'npm sideEffects contract');
   expectEqual(npmPackage.exports?.['.']?.types, './dist/index.d.ts', 'npm root type export');
