@@ -12,6 +12,7 @@ Closes #<!-- issue number -->
 
 <!-- Confirm each check ran locally before opening this PR -->
 
+- [ ] `npm install --global npm@12.0.2 --ignore-scripts --no-audit --no-fund` (activates the pinned npm before any repo command)
 - [ ] `npm ci --ignore-scripts --no-audit --no-fund` succeeds
 - [ ] `npm run check` passes (build + TypeScript suite + release verify)
 - [ ] `npm run audit` and `npm run audit:prod` pass
