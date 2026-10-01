@@ -16,11 +16,11 @@ function fixture(overrides = {}) {
     repository: { url: `${repository}.git` },
     bugs: { url: `${repository}/issues` },
     files: ['src/**/*.ts', 'python/nymrel_swarm_protocol/*.py'],
-    packageManager: 'npm@11.19.1',
+    packageManager: 'npm@12.0.2',
     engines: { node: '>=22.22.2 <27' },
     devEngines: {
       runtime: { name: 'node', version: '>=22.22.2 <27', onFail: 'error' },
-      packageManager: { name: 'npm', version: '11.19.1', onFail: 'error' },
+      packageManager: { name: 'npm', version: '12.0.2', onFail: 'error' },
     },
     sideEffects: false,
     exports: {

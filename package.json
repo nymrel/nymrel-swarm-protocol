@@ -76,12 +76,12 @@
     },
     "packageManager": {
       "name": "npm",
-      "version": "11.19.1",
+      "version": "12.0.2",
       "onFail": "error"
     }
   },
   "publishConfig": {
     "access": "public"
   },
-  "packageManager": "npm@11.19.1"
+  "packageManager": "npm@12.0.2"
 }

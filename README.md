@@ -64,8 +64,8 @@ Built by **Nymrel** under **JalenBuilds LLC**.
 The checked-in `.node-version` selects Node.js 24, where Corepack is bundled.
 Node.js 22 works the same way. Node.js 26 is also supported, but it no longer
 bundles Corepack: from a directory outside this checkout, first run
-`npm install --global npm@11.19.1 --ignore-scripts --no-audit --no-fund`.
-Every path must report npm `11.19.1` before repository package commands run.
+`npm install --global npm@12.0.2 --ignore-scripts --no-audit --no-fund`.
+Every path must report npm `12.0.2` before repository package commands run.
 
 ```bash
 git clone https://github.com/nymrel/nymrel-swarm-protocol.git
@@ -74,7 +74,7 @@ cd nymrel-swarm-protocol
 # Node.js 22/24: activate the reviewed npm, then validate and pack.
 # On Node.js 26, skip Corepack and use the external bootstrap above.
 corepack enable npm
-npm --version # must print 11.19.1
+npm --version # must print 12.0.2
 npm ci --ignore-scripts --no-audit --no-fund
 npm run check
 npm run audit
@@ -263,7 +263,7 @@ Both TypeScript and Python engines include comprehensive unit & concurrency test
 
 ```bash
 # Run the complete TypeScript/package contract
-npm --version # must print 11.19.1; use the source-install bootstrap above
+npm --version # must print 12.0.2; use the source-install bootstrap above
 npm ci --ignore-scripts --no-audit --no-fund
 npm run check
 
