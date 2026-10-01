@@ -31,13 +31,13 @@ test('runtime support includes only maintained Node and Python boundaries', () =
   }
   assert.equal(packageJson.engines.node, '>=22.22.2 <27');
   assert.equal(packageJson.devEngines.runtime.version, '>=22.22.2 <27');
-  assert.equal(packageJson.devEngines.packageManager.version, '11.19.1');
+  assert.equal(packageJson.devEngines.packageManager.version, '12.0.2');
   assert.match(pyproject, /^requires-python = ">=3\.11"$/m);
   assert.match(pyproject, /^requires = \["setuptools==84\.0\.0"\]$/m);
 });
 
 test('every Node job activates exact npm before repository package commands', () => {
-  const install = 'npm install --global npm@11.19.1 --ignore-scripts --no-audit --no-fund';
+  const install = 'npm install --global npm@12.0.2 --ignore-scripts --no-audit --no-fund';
   const contracts = [
     ['test-node', 'npm ci --ignore-scripts --no-audit --no-fund'],
     ['security', 'npm ci --ignore-scripts --no-audit --no-fund'],
@@ -47,7 +47,7 @@ test('every Node job activates exact npm before repository package commands', ()
 
   assert.equal(/^\s*cache:\s*npm\s*$/m.test(workflow), false);
   assert.equal((workflow.match(/package-manager-cache:\s*false/g) ?? []).length, contracts.length);
-  assert.equal((workflow.match(/npm install --global npm@11\.19\.1/g) ?? []).length, contracts.length);
+  assert.equal((workflow.match(/npm install --global npm@12\.0\.2/g) ?? []).length, contracts.length);
   for (const [name, firstPackageCommand] of contracts) {
     const body = job(name);
     assert.ok(body.indexOf('actions/setup-node@') < body.indexOf(install), `${name} installs npm before Node`);

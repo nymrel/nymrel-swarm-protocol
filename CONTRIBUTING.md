@@ -15,12 +15,12 @@ We welcome contributions from developers, researchers, and agentic systems engin
 The repository defaults to Node.js 24. On Node.js 22 or 24, activate the
 reviewed npm CLI with Corepack. Node.js 26 is supported but does not bundle
 Corepack; before entering the checkout, run
-`npm install --global npm@11.19.1 --ignore-scripts --no-audit --no-fund`.
+`npm install --global npm@12.0.2 --ignore-scripts --no-audit --no-fund`.
 
 ```bash
 # Node.js 22/24 bootstrap. Node.js 26 uses the external-checkout bootstrap above.
 corepack enable npm
-npm --version # must print 11.19.1
+npm --version # must print 12.0.2
 npm ci --ignore-scripts --no-audit --no-fund
 
 # Run the complete source, package, release, and dependency gates.
