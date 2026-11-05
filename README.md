@@ -9,6 +9,12 @@
 
 Built by **Nymrel** under **JalenBuilds LLC**.
 
+## Current protocol limits
+
+The current source has unresolved [lease and locking defects](https://github.com/nymrel/nymrel-swarm-protocol/issues/4), including an expired claim becoming active again after another agent acquires the resource. Active claim records therefore do not establish exclusive enforcement.
+
+Envelope v2 also has [integrity and mailbox-path limits](https://github.com/nymrel/nymrel-swarm-protocol/issues/3): its unkeyed checksum does not authenticate a sender or cover every header. The [opt-in Envelope v3 design](https://github.com/nymrel/nymrel-swarm-protocol/issues/6) tracks complete-header integrity, cross-language canonical serialization, and path-safe identities. Review these limits before adoption; the feature descriptions below are not evidence that those issues are resolved.
+
 ---
 
 ```
