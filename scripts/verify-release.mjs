@@ -14,7 +14,7 @@ const EXPECTED = Object.freeze({
   nodeRange: '>=22.22.2 <27',
   pythonRange: '>=3.11',
   pythonBuildBackend: 'setuptools.build_meta',
-  pythonBuildRequirements: ['setuptools==84.0.0'],
+  pythonBuildRequirements: ['setuptools==84.2.1'],
   typescriptFiles: 'src/**/*.ts',
   pythonFiles: 'python/nymrel_swarm_protocol/*.py',
   setupShim: 'from setuptools import setup\n\nsetup()\n',

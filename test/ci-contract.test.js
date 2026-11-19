@@ -33,7 +33,7 @@ test('runtime support includes only maintained Node and Python boundaries', () =
   assert.equal(packageJson.devEngines.runtime.version, '>=22.22.2 <27');
   assert.equal(packageJson.devEngines.packageManager.version, '12.0.2');
   assert.match(pyproject, /^requires-python = ">=3\.11"$/m);
-  assert.match(pyproject, /^requires = \["setuptools==84\.0\.0"\]$/m);
+  assert.match(pyproject, /^requires = \["setuptools==84\.2\.1"\]$/m);
 });
 
 test('every Node job activates exact npm before repository package commands', () => {
