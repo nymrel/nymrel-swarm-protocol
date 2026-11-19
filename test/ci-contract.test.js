@@ -93,7 +93,7 @@ test('workflow execution is immutable, least privilege, and fail closed', () => 
   ]));
   assert.ok(workflow.includes('npm run audit'));
   assert.ok(workflow.includes('npm run audit:prod'));
-  assert.ok(workflow.includes('zizmorcore/zizmor-action@3dc1ecc9bcb9e94e9b2c709687979e1298497054'));
+  assert.ok(workflow.includes('zizmorcore/zizmor-action@45d7276c9ca790aabd705e31ca99c6185c3e76dd'));
   assert.equal(/^\s*cache:\s*(?:npm|pip)\s*$/m.test(workflow), false);
   assert.equal(/continue-on-error|\|\|\s*true|\|\|\s*echo/.test(workflow), false);
 });
