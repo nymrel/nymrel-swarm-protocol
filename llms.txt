@@ -1,38 +1,57 @@
-# Nymrel Swarm Protocol (@nymrel/swarm-protocol)
-> Zero-dependency Multi-Agent Swarm Protocol, Two-Seat Command Studio Contract, and File-Based Bus Engine.
+# Nymrel Swarm Protocol
 
-## Entity & Provenance
-- Name: Nymrel Swarm Protocol
-- Package (Node.js): @nymrel/swarm-protocol
-- Package (Python): nymrel_swarm_protocol
-- Parent Organization: Nymrel -> JalenBuilds LLC
-- License: MIT License (Copyright 2026 Nymrel / JalenBuilds LLC)
-- Contact: contact@nymrel.com
-- Repository: https://github.com/nymrel/swarm-protocol
-- Canonical URL: https://nymrel.com/swarm-protocol
+Repository: https://github.com/nymrel/nymrel-swarm-protocol
+License: MIT
+Source and current tests are authoritative. Package metadata and provider names
+do not establish publication, deployed runtimes, authenticated identities, or
+permission to send messages or edit a workspace.
 
-## Core Capabilities
-1. Zero-dependency cross-process file-based communication bus with strongly-typed JSON Envelope v2 integrity verification (SHA-256).
-2. Directory-level hierarchical resource claims with auto-expiring leases, background heartbeats, and automated lease reap arbiters.
-3. Monotonic fencing generation clocks preventing split-brain writers and stale zombie updates.
-4. Two-Seat Command Studio Protocol providing structured mission owner vs studio controller separation of duties, planned handover protocols, and controller-driven emergency recovery.
-5. Autonomous agent adapters for Claude Code, Codex CLI, Gemini CLI, Cursor Composer, and local Ollama instances.
+## Choose a starting point
 
-## Machine Trust Specification
-- Architecture: Zero runtime dependencies, 100% standard library (Node.js `node:fs`, `node:crypto`, `node:path`, `node:os` & Python `os`, `sys`, `json`, `hashlib`, `time`, `dataclasses`).
-- Concurrency: Kernel-level atomic lock directories, PID verification, stale-lock eviction threshold, and monotonic fencing generations.
-- Supported Environments: Windows, macOS, Linux, Node.js >= 18, Python >= 3.9.
+- Non-developers: read README.md and the delivery-state definitions in
+  docs/NYMREL_MESH_DELIVERY_TRUTH.md to interpret an existing report. This is a
+  local developer library and CLI, with no hosted app or account setup flow.
+- Developers: follow README.md source installation and CONTRIBUTING.md checks.
+  Node.js >=22.22.2 <27, npm 12.0.2, and Python 3.11 through 3.14 are the reviewed
+  development/runtime boundaries. Use the repository's pinned toolchain.
+- Agents: use the SDK or CLI from your existing authorized runtime and an
+  explicitly selected local bus root. Read src/types.ts and the matching Python
+  implementation for the exact envelope and claim contracts. There is no MCP
+  server or hosted transport in this repository.
 
-## CLI Commands
-- `swarm-protocol init [--root <path>]`
-- `swarm-protocol claim <path> --agent <agent_id> [--mode exclusive|shared] [--duration <ms>]`
-- `swarm-protocol release <claim_id> --agent <agent_id>`
-- `swarm-protocol heartbeat <claim_id> --agent <agent_id>`
-- `swarm-protocol status [--root <path>]`
-- `swarm-protocol send --from <agent> --to <agent> --topic <topic> --payload <json>`
-- `swarm-protocol broadcast --from <agent> --topic <topic> --payload <json>`
-- `swarm-protocol receive --agent <agent> [--ack]`
-- `swarm-protocol reap [--root <path>]`
-- `swarm-protocol two-seat init --mission <id> --owner <agent> --controller <agent>`
-- `swarm-protocol two-seat handover --mission <id> --from <agent> --to <agent>`
-- `swarm-protocol two-seat recover --mission <id> --controller <agent> --reason <text>`
+## Local interfaces and effects
+
+- TypeScript source: src/index.ts; built CommonJS entry point: dist/index.js.
+- Python source: python/nymrel_swarm_protocol/.
+- Node CLI: node bin/swarm-protocol.js; Python CLI: swarm-protocol-py after
+  source installation.
+- The CLI constructs filesystem-backed managers before dispatching a command;
+  do not assume status/help is side-effect-free. Evaluate in a disposable,
+  authorized directory with an explicit --root path.
+- init creates bus directories; claim/release/heartbeat/reap modify claim state;
+  send/broadcast/receive --ack modify mailbox state. SDK adapter construction
+  registers a mailbox and optional heartbeats create background activity.
+- A provider-named adapter wraps this local protocol; it does not establish a
+  provider login, invoke that provider's agent, or grant execution authority.
+
+## Result and recovery contract
+
+- accepted, routed, delivered, observed, acted, and verified represent separate
+  evidence. Sender success does not establish receiver observation or work.
+- For delivery_unknown, reconcile the existing message ID and exact bytes
+  before retrying; do not create another message merely to hide uncertainty.
+- Follow docs/NYMREL_MESH_DELIVERY_TRUTH.md for recipient receipts, immutable
+  replay behavior, state transitions, and terminal outcomes.
+
+## Known adoption limits
+
+- https://github.com/nymrel/nymrel-swarm-protocol/issues/4 tracks unresolved lease
+  and locking defects. An expired claim can become active again after a resource
+  has been reassigned. Active claims do not establish exclusive enforcement.
+- https://github.com/nymrel/nymrel-swarm-protocol/issues/3 tracks Envelope v2
+  integrity and mailbox-path limits. The unkeyed checksum does not authenticate
+  the sender and does not cover every header.
+- https://github.com/nymrel/nymrel-swarm-protocol/issues/6 tracks the opt-in v3
+  design; it is not the current default contract.
+- Review SECURITY.md before adoption. These source contracts are not host-level
+  isolation, a production deployment receipt, or external identity verification.
