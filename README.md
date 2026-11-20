@@ -9,6 +9,12 @@
 
 Built by **Nymrel** under **JalenBuilds LLC**.
 
+## Current protocol limits
+
+The current source has unresolved [lease and locking defects](https://github.com/nymrel/nymrel-swarm-protocol/issues/4), including an expired claim becoming active again after another agent acquires the resource. Active claim records therefore do not establish exclusive enforcement.
+
+Envelope v2 also has [integrity and mailbox-path limits](https://github.com/nymrel/nymrel-swarm-protocol/issues/3): its unkeyed checksum does not authenticate a sender or cover every header. The [opt-in Envelope v3 design](https://github.com/nymrel/nymrel-swarm-protocol/issues/6) tracks complete-header integrity, cross-language canonical serialization, and path-safe identities. Review these limits before adoption; the feature descriptions below are not evidence that those issues are resolved.
+
 ---
 
 ```
@@ -45,9 +51,9 @@ Built by **Nymrel** under **JalenBuilds LLC**.
 ## ⚡ Key Highlights
 
 - **Zero External Runtime Dependencies**: Built 100% on Node.js standard libraries (`node:fs`, `node:crypto`, `node:path`) and Python standard libraries (`os`, `sys`, `json`, `hashlib`, `time`). No bloat, instant installation, runs in air-gapped or sandboxed environments.
-- **Cross-Process Atomic Locking**: Kernel-level directory creation mutexes with PID validation, timeout backoff with jitter, and automatic stale-lock eviction across Windows and POSIX.
-- **Monotonic Fencing Tokens**: Protect against split-brain scenarios and zombie writers. Expired or lagged workers presenting older generation tokens fail closed immediately.
-- **Path-Hierarchical Resource Claims**: Fine-grained locking at the directory or file level with mode awareness (`exclusive` write vs `shared` read/review), auto-expiring leases, and auto-arbiter cleanup.
+- **Cross-Process Locking**: Directory-based mutexes use timeout backoff with jitter and stale-lock eviction across Windows and POSIX. See the current protocol limits for unresolved ownership and eviction gaps.
+- **Monotonic Fencing Tokens**: Generations support stale-writer checks. The [current protocol limits](#current-protocol-limits) describe unresolved enforcement gaps.
+- **Path-Hierarchical Resource Claims**: Directory and file claims support `exclusive` write and `shared` read/review modes, lease expiry, and arbiter cleanup. Current locking and lease behavior has the limits described above.
 - **Two-Seat Command Studio Protocol**: Clean separation of powers between the active `mission_owner` (owns outcome and terminal closeout) and the independent `studio_controller` (watches health, verifies proof, and triggers emergency recovery without countermanding active writes).
 - **Out-of-the-Box Adapters**: Drop-in adapters for **Claude Code**, **Codex CLI**, **Gemini CLI**, **Cursor**, and **Local Ollama** models.
 - **Dual TypeScript + Python Implementations**: The shared protocol contract is implemented and independently tested in both language ecosystems.
@@ -120,7 +126,7 @@ const codex = new CodexCliAdapter(SWARM_ROOT);
 const claim = await codex.claim('src/backend', 'exclusive', 30000);
 console.log(`Codex acquired exclusive claim: ${claim.claim_id} (Fencing Gen: ${claim.fencing_generation})`);
 
-// 3. Send strongly-typed, SHA-256 verified Envelope v2
+// 3. Send strongly-typed Envelope v2 with an unkeyed SHA-256 checksum
 await codex.send('claude-code', 'task.ready', {
   component: 'AuthService',
   endpoints: ['/api/login', '/api/session'],
@@ -240,7 +246,9 @@ The **Two-Seat Command Studio Model** provides high-safety multi-agent orchestra
 +-------------------------------------------------------------------+
 ```
 
-### Safety Invariants
+### Intended Safety Invariants
+
+These are design goals. The [current protocol limits](#current-protocol-limits) describe gaps in their enforcement.
 
 1. **One Authority Owner**: Exactly one seat holds mission authority at any given time.
 2. **Observation is Active-Active; Writes are Mutual Exclusion**: Both seats may inspect and reason concurrently, but write scopes are guarded by monotonic fencing generations.
@@ -253,7 +261,7 @@ The **Two-Seat Command Studio Model** provides high-safety multi-agent orchestra
 
 In accordance with Nymrel entity standards:
 - **Human UX**: Clear, minimal, high-contrast CLI outputs, and structured markdown reports.
-- **Machine Trust**: Strongly-typed JSON schema validation, SHA-256 integrity checksums, structured `llms.txt`, and verifiable provenance linking to `parentOrganization: Nymrel -> JalenBuilds LLC`.
+- **Machine Trust**: Strongly-typed JSON schema validation, unkeyed SHA-256 checksums, structured `llms.txt`, and verifiable provenance linking to `parentOrganization: Nymrel -> JalenBuilds LLC`.
 
 ---
 
