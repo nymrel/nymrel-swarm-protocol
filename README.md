@@ -51,7 +51,7 @@ Envelope v2 also has [integrity and mailbox-path limits](https://github.com/nymr
 ## ⚡ Key Highlights
 
 - **Zero External Runtime Dependencies**: Built 100% on Node.js standard libraries (`node:fs`, `node:crypto`, `node:path`) and Python standard libraries (`os`, `sys`, `json`, `hashlib`, `time`). No bloat, instant installation, runs in air-gapped or sandboxed environments.
-- **Cross-Process Atomic Locking**: Kernel-level directory creation mutexes with PID validation, timeout backoff with jitter, and automatic stale-lock eviction across Windows and POSIX.
+- **Cross-Process Locking**: Directory-based mutexes use timeout backoff with jitter and stale-lock eviction across Windows and POSIX. See the current protocol limits for unresolved ownership and eviction gaps.
 - **Monotonic Fencing Tokens**: Generations support stale-writer checks. The [current protocol limits](#current-protocol-limits) describe unresolved enforcement gaps.
 - **Path-Hierarchical Resource Claims**: Directory and file claims support `exclusive` write and `shared` read/review modes, lease expiry, and arbiter cleanup. Current locking and lease behavior has the limits described above.
 - **Two-Seat Command Studio Protocol**: Clean separation of powers between the active `mission_owner` (owns outcome and terminal closeout) and the independent `studio_controller` (watches health, verifies proof, and triggers emergency recovery without countermanding active writes).
