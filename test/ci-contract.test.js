@@ -33,7 +33,7 @@ test('runtime support includes only maintained Node and Python boundaries', () =
   assert.equal(packageJson.devEngines.runtime.version, '>=22.22.2 <27');
   assert.equal(packageJson.devEngines.packageManager.version, '12.0.2');
   assert.match(pyproject, /^requires-python = ">=3\.11"$/m);
-  assert.match(pyproject, /^requires = \["setuptools==84\.0\.0"\]$/m);
+  assert.match(pyproject, /^requires = \["setuptools==84\.2\.1"\]$/m);
 });
 
 test('every Node job activates exact npm before repository package commands', () => {
@@ -93,7 +93,7 @@ test('workflow execution is immutable, least privilege, and fail closed', () => 
   ]));
   assert.ok(workflow.includes('npm run audit'));
   assert.ok(workflow.includes('npm run audit:prod'));
-  assert.ok(workflow.includes('zizmorcore/zizmor-action@3dc1ecc9bcb9e94e9b2c709687979e1298497054'));
+  assert.ok(workflow.includes('zizmorcore/zizmor-action@45d7276c9ca790aabd705e31ca99c6185c3e76dd'));
   assert.equal(/^\s*cache:\s*(?:npm|pip)\s*$/m.test(workflow), false);
   assert.equal(/continue-on-error|\|\|\s*true|\|\|\s*echo/.test(workflow), false);
 });

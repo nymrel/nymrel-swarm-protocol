@@ -39,7 +39,7 @@ function fixture(overrides = {}) {
     issues: `${repository}/issues`,
     requiresPython: '>=3.11',
     buildBackend: 'setuptools.build_meta',
-    buildRequirements: ['setuptools==84.0.0'],
+    buildRequirements: ['setuptools==84.2.1'],
     ...overrides.python,
   };
 
